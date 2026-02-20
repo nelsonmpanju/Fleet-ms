@@ -1,0 +1,25 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "field:number_plate",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": ["number_plate", "vehicle_type", "fleet_category", "ownership_type", "capacity_tons", "fuel_type", "status"],
+ "fields": [
+  {"fieldname":"number_plate","fieldtype":"Data","in_list_view":1,"label":"Number Plate","reqd":1,"unique":1},
+  {"fieldname":"vehicle_type","fieldtype":"Data","label":"Vehicle Type"},
+  {"fieldname":"fleet_category","fieldtype":"Select","label":"Fleet Category","options":"Truck\nTrailer Head\nVan\nOther","default":"Truck"},
+  {"fieldname":"ownership_type","fieldtype":"Select","label":"Ownership Type","options":"Owned\nLeased\nSub-Contracted","default":"Owned"},
+  {"fieldname":"capacity_tons","fieldtype":"Float","label":"Capacity (Tons)"},
+  {"fieldname":"fuel_type","fieldtype":"Select","label":"Fuel Type","options":"Diesel\nPetrol\nElectric\nHybrid","default":"Diesel"},
+  {"fieldname":"status","fieldtype":"Select","label":"Status","options":"Available\nIn Trip\nInactive","default":"Available"}
+ ],
+ "module": "VSD Fleet MS",
+ "name": "Vehicle",
+ "permissions": [{"role":"System Manager","read":1,"write":1,"create":1,"delete":1,"report":1,"export":1,"print":1,"email":1,"share":1}],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

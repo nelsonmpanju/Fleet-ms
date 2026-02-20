@@ -1,0 +1,13 @@
+{
+ "doctype": "Number Card",
+ "document_type": "Truck",
+ "filters_json": "[[\"Truck\",\"disabled\",\"=\",\"0\"]]",
+ "function": "Count",
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "Active Trucks",
+ "module": "VSD Fleet MS",
+ "name": "Fleet Active Trucks",
+ "show_percentage_stats": 0,
+ "type": "Document Type"
+}

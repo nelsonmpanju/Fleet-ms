@@ -1,0 +1,191 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2023-06-02 14:57:24.813136",
+ "default_view": "List",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "column_break_df8dx",
+  "create_purchase_invoice",
+  "purchase_invoice",
+  "section_break_teoxl",
+  "item_code",
+  "quantity",
+  "disbursement_type",
+  "supplier",
+  "currecy_type",
+  "cost_per_litre",
+  "column_break_yed9z",
+  "item_name",
+  "uom",
+  "currency",
+  "total_cost",
+  "section_break_nqviv",
+  "status",
+  "approved_by",
+  "approved_date",
+  "receipt_date",
+  "receipt_time",
+  "received_by",
+  "transaction_date"
+ ],
+ "fields": [
+  {
+   "fieldname": "column_break_df8dx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval: !doc.purchase_invoice",
+   "fieldname": "create_purchase_invoice",
+   "fieldtype": "Button",
+   "label": "Create Purchase Invoice"
+  },
+  {
+   "fieldname": "purchase_invoice",
+   "fieldtype": "Link",
+   "label": "Purchase Invoice",
+   "options": "Purchase Invoice",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_teoxl",
+   "fieldtype": "Section Break"
+  },
+  {
+   "bold": 1,
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Fuel Type",
+   "options": "Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "quantity",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Quantity (Litres)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "disbursement_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Disbursement Type",
+   "options": "From Supplier\nCash",
+   "reqd": 1
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "label": "Supplier",
+   "options": "Supplier"
+  },
+  {
+   "fieldname": "cost_per_litre",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Cost Per Litre",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_yed9z",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "item_code.item_name",
+   "fieldname": "item_name",
+   "fieldtype": "Read Only",
+   "label": "Fuel Name",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "item_code.stock_uom",
+   "fieldname": "uom",
+   "fieldtype": "Read Only",
+   "label": "Stock UOM",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "supplier.default_currency",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_cost",
+   "fieldtype": "Float",
+   "label": "Total Cost",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_nqviv",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "Open",
+   "fieldname": "status",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Status",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approved_by",
+   "fieldtype": "Data",
+   "label": "Approved/Rejected By",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approved_date",
+   "fieldtype": "Date",
+   "label": "Approval/Rejection Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "receipt_date",
+   "fieldtype": "Date",
+   "label": "Receipt Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "receipt_time",
+   "fieldtype": "Time",
+   "label": "Receipt Time",
+   "read_only": 1
+  },
+  {
+   "fieldname": "received_by",
+   "fieldtype": "Link",
+   "label": "Received By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "transaction_date",
+   "fieldtype": "Date",
+   "label": "Transaction Date"
+  },
+  {
+   "fieldname": "currecy_type",
+   "fieldtype": "Data",
+   "label": "Currecy Type"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2023-06-13 10:35:30.239896",
+ "modified_by": "Administrator",
+ "module": "VSD Fleet MS",
+ "name": "Fuel Request History",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

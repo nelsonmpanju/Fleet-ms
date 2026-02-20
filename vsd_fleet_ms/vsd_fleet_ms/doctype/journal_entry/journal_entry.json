@@ -1,0 +1,23 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "format:JV-.#####",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": ["posting_date", "multi_currency", "reference_trip", "user_remark", "accounts"],
+ "fields": [
+  {"fieldname":"posting_date","fieldtype":"Date","in_list_view":1,"label":"Posting Date"},
+  {"fieldname":"multi_currency","fieldtype":"Check","label":"Multi Currency"},
+  {"fieldname":"reference_trip","fieldtype":"Link","label":"Reference Trip","options":"Trips"},
+  {"fieldname":"user_remark","fieldtype":"Small Text","label":"User Remark"},
+  {"fieldname":"accounts","fieldtype":"Table","label":"Accounts","options":"Journal Entry Account","reqd":1}
+ ],
+ "module": "VSD Fleet MS",
+ "name": "Journal Entry",
+ "permissions": [{"role":"System Manager","read":1,"write":1,"create":1,"delete":1,"report":1,"export":1,"print":1,"email":1,"share":1}],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

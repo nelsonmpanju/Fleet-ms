@@ -1,0 +1,181 @@
+from __future__ import annotations
+
+import frappe
+from frappe.model.document import Document
+from frappe.model.naming import make_autoname
+from frappe.utils import flt, nowdate
+
+from vsd_fleet_ms.vsd_fleet_ms.doctype.account.account import ensure_posting_account
+
+
+class SalesInvoice(Document):
+    def autoname(self):
+        self.name = make_autoname(self.naming_series or "SI-.#####")
+
+    def validate(self):
+        self.set_defaults()
+        self.set_income_accounts()
+        self.validate_income_account()
+        self.calculate_totals()
+
+    def on_submit(self):
+        self.create_income_ledger_entry()
+        self.db_set("status", "Paid" if self.payment_status == "Paid" else "Submitted")
+
+    def on_cancel(self):
+        self.cancel_linked_ledger_entry()
+        self.db_set("status", "Cancelled")
+
+    def set_defaults(self):
+        if not self.posting_date:
+            self.posting_date = nowdate()
+        if not self.due_date:
+            self.due_date = self.posting_date
+        if not self.currency:
+            self.currency = frappe.db.get_value("Currency", {"enabled": 1}, "name")
+        if not self.conversion_rate:
+            self.conversion_rate = 1
+
+    def set_income_accounts(self):
+        default_income_account = self.income_account or self.get_default_income_account()
+
+        for row in self.items:
+            if not row.income_account and row.item_code:
+                row.income_account = frappe.db.get_value("Item", row.item_code, "income_account")
+
+            if not row.income_account:
+                row.income_account = default_income_account
+
+            if not row.income_account:
+                frappe.throw(f"Income Account is required for row {row.idx}.")
+
+        if self.items and not self.income_account:
+            self.income_account = self.items[0].income_account
+
+        for row in self.items:
+            if row.income_account != self.income_account:
+                frappe.throw(
+                    "All Sales Invoice rows must use the same Income Account as the invoice header."
+                )
+
+    def get_default_income_account(self):
+        default_income = frappe.db.get_value(
+            "Account", {"account_type": "Income", "is_group": 0}, "name"
+        )
+        if not default_income:
+            frappe.throw(
+                "No posting Income Account found. Please create a non-group Income account first."
+            )
+        return default_income
+
+    def validate_income_account(self):
+        if not self.income_account:
+            frappe.throw("Income Account is required.")
+
+        details = ensure_posting_account(self.income_account, "Income Account")
+        if details.get("account_type") != "Income":
+            frappe.throw(
+                f"Income Account {self.income_account} must have Account Type Income."
+            )
+
+    def create_income_ledger_entry(self):
+        amount = flt(self.grand_total)
+        if amount <= 0:
+            return
+
+        if self.ledger_entry and frappe.db.exists("Ledger Entry", self.ledger_entry):
+            existing = frappe.get_doc("Ledger Entry", self.ledger_entry)
+            if existing.docstatus == 1:
+                return
+            if existing.docstatus == 0:
+                existing.submit()
+                return
+            self.db_set("ledger_entry", "", update_modified=False)
+
+        ledger_doc = frappe.get_doc(
+            {
+                "doctype": "Ledger Entry",
+                "posting_date": self.posting_date,
+                "entry_type": "Income",
+                "source_type": "Sales Invoice",
+                "account": self.income_account,
+                "party_type": "Customer",
+                "party": self.customer,
+                "currency": self.currency,
+                "amount": amount,
+                "reference_doctype": "Sales Invoice",
+                "reference_name": self.name,
+                "reference_trip": self.reference_trip,
+                "description": f"Sales Invoice {self.name}",
+                "remarks": self.remarks or f"Auto ledger booking for Sales Invoice {self.name}",
+            }
+        )
+        ledger_doc.flags.ignore_permissions = True
+        ledger_doc.insert(ignore_permissions=True)
+        ledger_doc.submit()
+        self.db_set("ledger_entry", ledger_doc.name, update_modified=False)
+
+    def cancel_linked_ledger_entry(self):
+        if not self.ledger_entry:
+            return
+        if not frappe.db.exists("Ledger Entry", self.ledger_entry):
+            self.db_set("ledger_entry", "", update_modified=False)
+            return
+
+        ledger_doc = frappe.get_doc("Ledger Entry", self.ledger_entry)
+        ledger_doc.flags.ignore_permissions = True
+        if ledger_doc.docstatus == 1:
+            ledger_doc.cancel()
+
+    def calculate_totals(self):
+        total = 0
+        line_discount_total = 0
+        line_tax_total = 0
+
+        for row in self.items:
+            row.qty = flt(row.qty)
+            row.rate = flt(row.rate)
+            row.amount = row.qty * row.rate
+
+            if flt(row.discount_percentage) and not flt(row.discount_amount):
+                row.discount_amount = row.amount * flt(row.discount_percentage) / 100
+            else:
+                row.discount_amount = flt(row.discount_amount)
+
+            taxable_line = row.amount - row.discount_amount
+            row.tax_amount = taxable_line * flt(row.tax_rate) / 100
+            row.net_amount = taxable_line + row.tax_amount
+
+            total += row.amount
+            line_discount_total += row.discount_amount
+            line_tax_total += row.tax_amount
+
+        header_discount = flt(self.discount_amount)
+        header_tax = flt(self.tax_amount)
+        total_discount = line_discount_total + header_discount
+
+        self.total = total
+        self.taxable_amount = total - total_discount
+        self.tax_amount = line_tax_total + header_tax
+        self.grand_total = self.taxable_amount + self.tax_amount
+
+        if flt(self.is_paid):
+            self.paid_amount = self.grand_total
+            self.outstanding_amount = 0
+            self.payment_status = "Paid"
+        else:
+            self.outstanding_amount = self.grand_total - flt(self.paid_amount)
+            if self.outstanding_amount <= 0:
+                self.outstanding_amount = 0
+                self.payment_status = "Paid"
+            elif flt(self.paid_amount) > 0:
+                self.payment_status = "Partly Paid"
+            else:
+                self.payment_status = "Unpaid"
+
+        if self.payment_status == "Paid" and self.docstatus == 1:
+            self.status = "Paid"
+        elif self.docstatus == 1:
+            self.status = "Submitted"
+        elif self.docstatus == 2:
+            self.status = "Cancelled"

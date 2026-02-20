@@ -1,0 +1,20 @@
+{
+ "based_on": "date",
+ "chart_name": "Fleet Trips Over Time",
+ "chart_type": "Count",
+ "color": "#5e64ff",
+ "doctype": "Dashboard Chart",
+ "document_type": "Trips",
+ "filters_json": "[[\"Trips\",\"docstatus\",\"=\",1]]",
+ "is_public": 1,
+ "is_standard": 1,
+ "module": "VSD Fleet MS",
+ "name": "Fleet Trips Over Time",
+ "number_of_groups": 0,
+ "time_interval": "Monthly",
+ "timeseries": 1,
+ "timespan": "Last Year",
+ "type": "Bar",
+ "use_report_chart": 0,
+ "y_axis": []
+}

@@ -1,0 +1,18 @@
+{
+ "chart_name": "Fleet Top Trucks",
+ "chart_type": "Group By",
+ "doctype": "Dashboard Chart",
+ "document_type": "Trips",
+ "filters_json": "[[\"Trips\",\"docstatus\",\"=\",1]]",
+ "group_by_based_on": "truck_number",
+ "group_by_type": "Count",
+ "is_public": 1,
+ "is_standard": 1,
+ "module": "VSD Fleet MS",
+ "name": "Fleet Top Trucks",
+ "number_of_groups": 12,
+ "timeseries": 0,
+ "type": "Bar",
+ "use_report_chart": 0,
+ "y_axis": []
+}

@@ -1,0 +1,13 @@
+{
+ "doctype": "Number Card",
+ "document_type": "Driver",
+ "filters_json": "[[\"Driver\",\"status\",\"=\",\"Active\"]]",
+ "function": "Count",
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "Active Drivers",
+ "module": "VSD Fleet MS",
+ "name": "Fleet Active Drivers",
+ "show_percentage_stats": 0,
+ "type": "Document Type"
+}

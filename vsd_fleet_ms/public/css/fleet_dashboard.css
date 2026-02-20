@@ -1,0 +1,165 @@
+.fleet-dashboard-wrapper {
+    padding: 16px;
+    background: #f5f7fa;
+    min-height: 100vh;
+}
+.fleet-filter-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.fleet-filter-bar .btn {
+    border-radius: 20px;
+    padding: 4px 16px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+.fleet-filter-bar .btn.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+}
+.fleet-section-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #636e72;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 20px 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #ecf0f1;
+}
+/* KPI Cards */
+.fleet-kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.fleet-kpi-card {
+    background: #fff;
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    border-left: 4px solid #2196F3;
+    text-align: center;
+    transition: box-shadow 0.2s;
+}
+.fleet-kpi-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.fleet-kpi-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #2d3436;
+    line-height: 1.2;
+}
+.fleet-kpi-label {
+    font-size: 0.7rem;
+    color: #636e72;
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.fleet-kpi-sub {
+    font-size: 0.7rem;
+    color: #b2bec3;
+    margin-top: 2px;
+}
+.fleet-kpi-green { border-left-color: #4CAF50; }
+.fleet-kpi-orange { border-left-color: #FF9800; }
+.fleet-kpi-red { border-left-color: #F44336; }
+.fleet-kpi-purple { border-left-color: #9C27B0; }
+.fleet-kpi-teal { border-left-color: #009688; }
+.fleet-kpi-blue { border-left-color: #2196F3; }
+.fleet-kpi-indigo { border-left-color: #3F51B5; }
+.fleet-kpi-cyan { border-left-color: #00BCD4; }
+/* Charts */
+.fleet-charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+.fleet-chart-card {
+    background: #fff;
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.fleet-chart-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #636e72;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+/* Tables */
+.fleet-table-card {
+    background: #fff;
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    margin-bottom: 16px;
+    overflow-x: auto;
+}
+.fleet-table-card table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+}
+.fleet-table-card th {
+    background: #f8f9fa;
+    padding: 8px 10px;
+    text-align: left;
+    font-weight: 600;
+    color: #636e72;
+    border-bottom: 2px solid #ecf0f1;
+    white-space: nowrap;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.3px;
+}
+.fleet-table-card td {
+    padding: 7px 10px;
+    border-bottom: 1px solid #f1f2f6;
+    color: #2d3436;
+}
+.fleet-table-card tr:hover { background: #f8f9fa; }
+.fleet-table-card a { color: var(--primary); font-weight: 500; }
+/* Status Badges */
+.fleet-badge {
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    display: inline-block;
+}
+.fleet-badge-green { background: #e8f5e9; color: #2e7d32; }
+.fleet-badge-blue { background: #e3f2fd; color: #1565c0; }
+.fleet-badge-orange { background: #fff3e0; color: #e65100; }
+.fleet-badge-red { background: #ffebee; color: #c62828; }
+.fleet-badge-gray { background: #eceff1; color: #546e7a; }
+.fleet-badge-purple { background: #f3e5f5; color: #7b1fa2; }
+/* Customer/Supplier Stats */
+.fleet-stats-container { padding: 8px 0; }
+.fleet-stats-header {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: #2d3436;
+}
+.fleet-stats-table { margin-top: 20px; }
+.fleet-stats-table .fleet-chart-title { margin-bottom: 8px; }
+/* Loading */
+.fleet-loading {
+    text-align: center;
+    padding: 60px 20px;
+    color: #b2bec3;
+    font-size: 0.9rem;
+}
+@media (max-width: 768px) {
+    .fleet-charts-grid { grid-template-columns: 1fr; }
+    .fleet-kpi-row { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+}

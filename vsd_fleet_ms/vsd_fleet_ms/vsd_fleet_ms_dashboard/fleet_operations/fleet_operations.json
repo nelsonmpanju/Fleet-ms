@@ -1,0 +1,30 @@
+{
+ "cards": [
+  {"card": "Fleet Total Trips"},
+  {"card": "Fleet Completed Trips"},
+  {"card": "Fleet In Transit"},
+  {"card": "Fleet Breakdowns"},
+  {"card": "Fleet Active Trucks"},
+  {"card": "Fleet Active Drivers"}
+ ],
+ "charts": [
+  {"chart": "Fleet Trips Over Time", "width": "Full"},
+  {"chart": "Fleet Trip Status", "width": "Half"},
+  {"chart": "Fleet Transporter Type", "width": "Half"},
+  {"chart": "Fleet Top Trucks", "width": "Full"},
+  {"chart": "Fleet Cargo by Container", "width": "Half"},
+  {"chart": "Fleet Stock Movements", "width": "Half"}
+ ],
+ "creation": "2026-02-19 09:00:00.000000",
+ "dashboard_name": "Fleet Operations",
+ "docstatus": 0,
+ "doctype": "Dashboard",
+ "idx": 0,
+ "is_default": 0,
+ "is_standard": 1,
+ "modified": "2026-02-19 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "VSD Fleet MS",
+ "name": "Fleet Operations",
+ "owner": "Administrator"
+}

@@ -1,0 +1,13 @@
+{
+ "doctype": "Number Card",
+ "document_type": "Insurance Cover Note",
+ "filters_json": "[[\"Insurance Cover Note\",\"status\",\"=\",\"Expired\"]]",
+ "function": "Count",
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "Expired Insurance",
+ "module": "VSD Fleet MS",
+ "name": "Compliance Expired Insurance",
+ "show_percentage_stats": 0,
+ "type": "Document Type"
+}

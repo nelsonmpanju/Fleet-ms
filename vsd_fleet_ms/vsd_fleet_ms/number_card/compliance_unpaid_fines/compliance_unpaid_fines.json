@@ -1,0 +1,13 @@
+{
+ "doctype": "Number Card",
+ "document_type": "Vehicle Fine Record",
+ "filters_json": "[[\"Vehicle Fine Record\",\"status\",\"=\",\"PENDING\"]]",
+ "function": "Count",
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "Unpaid Vehicle Fines",
+ "module": "VSD Fleet MS",
+ "name": "Compliance Unpaid Fines",
+ "show_percentage_stats": 0,
+ "type": "Document Type"
+}

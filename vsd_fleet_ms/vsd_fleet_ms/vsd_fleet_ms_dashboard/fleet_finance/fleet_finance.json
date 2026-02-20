@@ -1,0 +1,26 @@
+{
+ "cards": [
+  {"card": "Fleet Revenue"},
+  {"card": "Fleet Outstanding Receivables"},
+  {"card": "Fleet Total Purchases"},
+  {"card": "Fleet Outstanding Payables"}
+ ],
+ "charts": [
+  {"chart": "Fleet Sales Over Time", "width": "Half"},
+  {"chart": "Fleet Purchases Over Time", "width": "Half"},
+  {"chart": "Fleet Sales Payment Status", "width": "Half"},
+  {"chart": "Fleet Purchases by Type", "width": "Half"}
+ ],
+ "creation": "2026-02-19 09:00:00.000000",
+ "dashboard_name": "Fleet Finance",
+ "docstatus": 0,
+ "doctype": "Dashboard",
+ "idx": 0,
+ "is_default": 0,
+ "is_standard": 1,
+ "modified": "2026-02-19 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "VSD Fleet MS",
+ "name": "Fleet Finance",
+ "owner": "Administrator"
+}

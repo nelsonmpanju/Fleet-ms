@@ -1,0 +1,15 @@
+{
+ "aggregate_function_based_on": "grand_total",
+ "doctype": "Number Card",
+ "document_type": "Purchase Invoice",
+ "filters_json": "[[\"Purchase Invoice\",\"docstatus\",\"=\",\"1\"],[\"Purchase Invoice\",\"posting_date\",\"Timespan\",\"this year\"]]",
+ "function": "Sum",
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "Total Purchases",
+ "module": "VSD Fleet MS",
+ "name": "Fleet Total Purchases",
+ "show_percentage_stats": 1,
+ "stats_time_interval": "Monthly",
+ "type": "Document Type"
+}

@@ -1,0 +1,19 @@
+{
+ "chart_name": "Fleet Sales Payment Status",
+ "chart_type": "Group By",
+ "custom_options": "{\"truncateLegends\": 1}",
+ "doctype": "Dashboard Chart",
+ "document_type": "Sales Invoice",
+ "filters_json": "[[\"Sales Invoice\",\"docstatus\",\"=\",1]]",
+ "group_by_based_on": "payment_status",
+ "group_by_type": "Count",
+ "is_public": 1,
+ "is_standard": 1,
+ "module": "VSD Fleet MS",
+ "name": "Fleet Sales Payment Status",
+ "number_of_groups": 0,
+ "timeseries": 0,
+ "type": "Donut",
+ "use_report_chart": 0,
+ "y_axis": []
+}

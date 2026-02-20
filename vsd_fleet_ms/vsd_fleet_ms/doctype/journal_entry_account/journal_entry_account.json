@@ -1,0 +1,17 @@
+{
+ "actions": [],
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": ["account", "exchange_rate", "debit_in_account_currency", "credit_in_account_currency", "cost_center"],
+ "fields": [
+  {"fieldname":"account","fieldtype":"Link","in_list_view":1,"label":"Account","options":"Account","reqd":1},
+  {"fieldname":"exchange_rate","fieldtype":"Float","label":"Exchange Rate","default":"1"},
+  {"fieldname":"debit_in_account_currency","fieldtype":"Currency","label":"Debit"},
+  {"fieldname":"credit_in_account_currency","fieldtype":"Currency","label":"Credit"},
+  {"fieldname":"cost_center","fieldtype":"Link","label":"Cost Center","options":"Cost Center"}
+ ],
+ "istable": 1,
+ "module": "VSD Fleet MS",
+ "name": "Journal Entry Account"
+}

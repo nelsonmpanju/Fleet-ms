@@ -1,0 +1,21 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "field:cost_center_name",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": ["cost_center_name", "parent_cost_center", "is_group"],
+ "fields": [
+  {"fieldname":"cost_center_name","fieldtype":"Data","in_list_view":1,"label":"Cost Center Name","reqd":1,"unique":1},
+  {"fieldname":"parent_cost_center","fieldtype":"Link","label":"Parent Cost Center","options":"Cost Center"},
+  {"fieldname":"is_group","fieldtype":"Check","label":"Is Group","default":"0"}
+ ],
+ "module": "VSD Fleet MS",
+ "name": "Cost Center",
+ "permissions": [{"role":"System Manager","read":1,"write":1,"create":1,"delete":1,"report":1,"export":1,"print":1,"email":1,"share":1}],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

@@ -1,0 +1,21 @@
+{
+ "based_on": "posting_date",
+ "chart_name": "Fleet Stock Movements",
+ "chart_type": "Count",
+ "color": "#00BCD4",
+ "custom_options": "{\"lineOptions\": {\"regionFill\": 1}}",
+ "doctype": "Dashboard Chart",
+ "document_type": "Stock Entry",
+ "filters_json": "[[\"Stock Entry\",\"docstatus\",\"=\",1]]",
+ "is_public": 1,
+ "is_standard": 1,
+ "module": "VSD Fleet MS",
+ "name": "Fleet Stock Movements",
+ "number_of_groups": 0,
+ "time_interval": "Monthly",
+ "timeseries": 1,
+ "timespan": "Last Year",
+ "type": "Line",
+ "use_report_chart": 0,
+ "y_axis": []
+}
