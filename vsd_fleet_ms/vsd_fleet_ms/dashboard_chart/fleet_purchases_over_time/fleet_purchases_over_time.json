@@ -1,0 +1,21 @@
+{
+ "based_on": "posting_date",
+ "chart_name": "Fleet Purchases Over Time",
+ "chart_type": "Sum",
+ "color": "#cb4b2a",
+ "doctype": "Dashboard Chart",
+ "document_type": "Purchase Invoice",
+ "filters_json": "[[\"Purchase Invoice\",\"docstatus\",\"=\",1]]",
+ "is_public": 1,
+ "is_standard": 1,
+ "module": "VSD Fleet MS",
+ "name": "Fleet Purchases Over Time",
+ "number_of_groups": 0,
+ "time_interval": "Monthly",
+ "timeseries": 1,
+ "timespan": "Last Year",
+ "type": "Bar",
+ "use_report_chart": 0,
+ "value_based_on": "grand_total",
+ "y_axis": []
+}

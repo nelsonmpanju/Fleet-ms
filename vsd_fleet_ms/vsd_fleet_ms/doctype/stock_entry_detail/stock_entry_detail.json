@@ -1,0 +1,21 @@
+{
+ "actions": [],
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": ["item_code", "qty", "uom", "basic_rate", "amount", "s_warehouse", "t_warehouse", "fuel_request_table", "fuel_request"],
+ "fields": [
+  {"fieldname":"item_code","fieldtype":"Link","in_list_view":1,"label":"Item Code","options":"Item","reqd":1},
+  {"fieldname":"qty","fieldtype":"Float","in_list_view":1,"label":"Qty","default":"1"},
+  {"fieldname":"uom","fieldtype":"Link","label":"UOM","options":"UOM"},
+  {"fieldname":"basic_rate","fieldtype":"Currency","label":"Basic Rate","default":"0"},
+  {"fieldname":"amount","fieldtype":"Currency","label":"Amount","read_only":1},
+  {"fieldname":"s_warehouse","fieldtype":"Link","label":"Source Warehouse","options":"Warehouse"},
+  {"fieldname":"t_warehouse","fieldtype":"Link","label":"Target Warehouse","options":"Warehouse"},
+  {"fieldname":"fuel_request_table","fieldtype":"Data","label":"Fuel Request Table"},
+  {"fieldname":"fuel_request","fieldtype":"Data","label":"Fuel Request"}
+ ],
+ "istable": 1,
+ "module": "VSD Fleet MS",
+ "name": "Stock Entry Detail"
+}

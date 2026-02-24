@@ -1,0 +1,122 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2023-05-04 17:35:51.063362",
+ "default_view": "List",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "vehicle_fuel_parent_warehouse",
+  "sales_item_group",
+  "fuel_item_group",
+  "column_break_zuak",
+  "fuel_item",
+  "fuel_expense_account",
+  "fuel_cash_account",
+  "section_break_sales",
+  "default_income_account",
+  "default_receivable_account",
+  "column_break_lutn",
+  "default_payable_account"
+ ],
+ "fields": [
+  {
+   "fieldname": "vehicle_fuel_parent_warehouse",
+   "fieldtype": "Link",
+   "label": "Vehicle Fuel Parent Warehouse",
+   "options": "Warehouse"
+  },
+  {
+   "fieldname": "sales_item_group",
+   "fieldtype": "Link",
+   "label": "Sales Item Group",
+   "options": "Item Group"
+  },
+  {
+   "fieldname": "fuel_item_group",
+   "fieldtype": "Link",
+   "label": "Fuel Item Group",
+   "options": "Item Group"
+  },
+  {
+   "fieldname": "fuel_item",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Fuel Item",
+   "options": "Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "fuel_expense_account",
+   "fieldtype": "Link",
+   "label": "Fuel Expense Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "fuel_cash_account",
+   "fieldtype": "Link",
+   "label": "Fuel Cash/Bank Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "column_break_zuak",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_sales",
+   "fieldtype": "Section Break",
+   "label": "Sales Defaults"
+  },
+  {
+   "description": "Default income account used for new Sales Invoices",
+   "fieldname": "default_income_account",
+   "fieldtype": "Link",
+   "label": "Default Income Account",
+   "options": "Account"
+  },
+  {
+   "description": "Accounts Receivable account \u2014 debited when a Sales Invoice is submitted",
+   "fieldname": "default_receivable_account",
+   "fieldtype": "Link",
+   "label": "Default Receivable Account",
+   "options": "Account"
+  },
+  {
+   "description": "Accounts Payable (Creditors) — credited when an expense is approved for a supplier",
+   "fieldname": "default_payable_account",
+   "fieldtype": "Link",
+   "label": "Default Payable Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "column_break_lutn",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-02-22 10:52:33.089734",
+ "modified_by": "Administrator",
+ "module": "VSD Fleet MS",
+ "name": "Transport Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

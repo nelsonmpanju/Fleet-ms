@@ -1,0 +1,19 @@
+{
+ "aggregate_function_based_on": "grand_total",
+ "chart_name": "Fleet Purchases by Type",
+ "chart_type": "Group By",
+ "doctype": "Dashboard Chart",
+ "document_type": "Purchase Invoice",
+ "filters_json": "[[\"Purchase Invoice\",\"docstatus\",\"=\",1]]",
+ "group_by_based_on": "invoice_type",
+ "group_by_type": "Sum",
+ "is_public": 1,
+ "is_standard": 1,
+ "module": "VSD Fleet MS",
+ "name": "Fleet Purchases by Type",
+ "number_of_groups": 0,
+ "timeseries": 0,
+ "type": "Bar",
+ "use_report_chart": 0,
+ "y_axis": []
+}

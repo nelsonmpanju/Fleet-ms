@@ -1,0 +1,43 @@
+{
+ "actions": [],
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "item_code",
+  "description",
+  "qty",
+  "uom",
+  "rate",
+  "amount",
+  "discount_percentage",
+  "discount_amount",
+  "tax_rate",
+  "tax_amount",
+  "net_amount",
+  "column_break_ops",
+  "warehouse",
+  "truck",
+  "reference_trip"
+ ],
+ "fields": [
+  {"fieldname":"item_code","fieldtype":"Link","in_list_view":1,"label":"Item","options":"Item","reqd":1},
+  {"fieldname":"description","fieldtype":"Small Text","label":"Description"},
+  {"fieldname":"qty","fieldtype":"Float","in_list_view":1,"label":"Qty","default":"1"},
+  {"fieldname":"uom","fieldtype":"Link","label":"UOM","options":"UOM"},
+  {"fieldname":"rate","fieldtype":"Currency","label":"Rate"},
+  {"fieldname":"amount","fieldtype":"Currency","label":"Amount","read_only":1},
+  {"fieldname":"discount_percentage","fieldtype":"Float","label":"Discount %","default":"0"},
+  {"fieldname":"discount_amount","fieldtype":"Currency","label":"Discount Amount","default":"0"},
+  {"fieldname":"tax_rate","fieldtype":"Float","label":"Tax %","default":"0"},
+  {"fieldname":"tax_amount","fieldtype":"Currency","label":"Tax Amount","default":"0"},
+  {"fieldname":"net_amount","fieldtype":"Currency","label":"Net Amount","read_only":1},
+  {"fieldname":"column_break_ops","fieldtype":"Column Break"},
+  {"fieldname":"warehouse","fieldtype":"Link","label":"Warehouse","options":"Warehouse"},
+  {"fieldname":"truck","fieldtype":"Link","label":"Truck","options":"Truck"},
+  {"fieldname":"reference_trip","fieldtype":"Link","label":"Trip","options":"Trips"}
+ ],
+ "istable": 1,
+ "module": "VSD Fleet MS",
+ "name": "Purchase Invoice Item"
+}

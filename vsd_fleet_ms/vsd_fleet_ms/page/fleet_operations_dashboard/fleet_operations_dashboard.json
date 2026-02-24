@@ -1,0 +1,13 @@
+{
+ "creation": "2026-02-22 00:00:00",
+ "doctype": "Page",
+ "module": "VSD Fleet MS",
+ "name": "fleet-operations-dashboard",
+ "page_name": "fleet-operations-dashboard",
+ "roles": [
+  {"role": "System Manager"},
+  {"role": "All"}
+ ],
+ "standard": "Yes",
+ "title": "Fleet Operations"
+}

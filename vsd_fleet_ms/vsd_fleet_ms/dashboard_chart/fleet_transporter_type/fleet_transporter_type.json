@@ -1,0 +1,19 @@
+{
+ "chart_name": "Fleet Transporter Type",
+ "chart_type": "Group By",
+ "custom_options": "{\"truncateLegends\": 1}",
+ "doctype": "Dashboard Chart",
+ "document_type": "Trips",
+ "filters_json": "[[\"Trips\",\"docstatus\",\"=\",1]]",
+ "group_by_based_on": "transporter_type",
+ "group_by_type": "Count",
+ "is_public": 1,
+ "is_standard": 1,
+ "module": "VSD Fleet MS",
+ "name": "Fleet Transporter Type",
+ "number_of_groups": 0,
+ "timeseries": 0,
+ "type": "Pie",
+ "use_report_chart": 0,
+ "y_axis": []
+}

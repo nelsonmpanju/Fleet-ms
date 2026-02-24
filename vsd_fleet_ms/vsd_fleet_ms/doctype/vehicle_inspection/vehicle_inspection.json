@@ -1,0 +1,23 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "format:VINSP-.#####",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": ["trip_reference", "vehicle_plate_number", "driver_name", "inspection_date", "status"],
+ "fields": [
+  {"fieldname":"trip_reference","fieldtype":"Link","label":"Trip Reference","options":"Trips"},
+  {"fieldname":"vehicle_plate_number","fieldtype":"Link","label":"Vehicle","options":"Truck"},
+  {"fieldname":"driver_name","fieldtype":"Data","label":"Driver Name"},
+  {"fieldname":"inspection_date","fieldtype":"Date","label":"Inspection Date"},
+  {"fieldname":"status","fieldtype":"Select","label":"Status","options":"Open\nPassed\nFailed","default":"Open"}
+ ],
+ "module": "VSD Fleet MS",
+ "name": "Vehicle Inspection",
+ "permissions": [{"role":"System Manager","read":1,"write":1,"create":1,"delete":1,"report":1,"export":1,"print":1,"email":1,"share":1}],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}
