@@ -7,11 +7,33 @@ from frappe import _
 
 def after_install():
 	create_default_chart_of_accounts()
+	create_seed_accounts()
+	create_fixed_expenses()
+	create_trip_location_types()
+	create_trip_locations()
+	create_cargo_types()
+	create_fuel_items()
+	normalize_account_currencies()
 
+
+# ── helpers ──────────────────────────────────────────────────────────────────
+
+def _make(doctype, data, unique_field="name"):
+	"""Insert if not already exists; return the doc."""
+	key = data.get(unique_field) or data.get("name")
+	if frappe.db.exists(doctype, key):
+		return frappe.get_doc(doctype, key)
+	doc = frappe.get_doc({"doctype": doctype, **data})
+	doc.insert(ignore_permissions=True)
+	return doc
+
+
+# ── 1. Chart of Accounts ────────────────────────────────────────────────────
 
 def create_default_chart_of_accounts():
 	"""
 	Create a default Chart of Accounts for Fleet MS.
+	All accounts default to TZS currency.
 
 	Tree structure
 	==============
@@ -170,10 +192,11 @@ def create_default_chart_of_accounts():
 			"parent_account": parent_account,
 			"is_group": is_group,
 			"account_type": account_type,
+			"account_currency": "TZS",
 			"description": description,
 		})
 		doc.insert(ignore_permissions=True)
-		frappe.db.commit()  # commit after each account so children can verify parent.is_group
+		frappe.db.commit()
 		created += 1
 
 	if created or skipped:
@@ -183,28 +206,241 @@ def create_default_chart_of_accounts():
 		frappe.msgprint(msg, alert=True)
 
 
-def seed_ob_equity_account():
-	"""Create the Opening Balance Equity account if it does not yet exist.
+# ── 2. Seed Accounts (operational accounts under the main chart) ────────────
 
-	Run once via:  bench --site <site> execute vsd_fleet_ms.install.seed_ob_equity_account
-	"""
-	name = "Opening Balance Equity"
-	if frappe.db.exists("Account", name):
-		print(f"{name} already exists — nothing to do.")
-		return
-
-	if not frappe.db.exists("Account", "Equity"):
-		print("ERROR: 'Equity' group account not found. Please create it first.")
-		return
-
-	frappe.get_doc({
-		"doctype":        "Account",
-		"account_name":   name,
-		"account_number": "3300",
-		"parent_account": "Equity",
-		"is_group":       0,
-		"account_type":   "Equity",
-		"description":    "System account — absorbs opening balance entries during initial setup.",
-	}).insert(ignore_permissions=True)
+def create_seed_accounts():
+	"""Create additional operational accounts used by fixed expenses and trips."""
+	accounts = [
+		{"account_name": "Driver Cash Advance",     "account_type": "Asset",   "account_currency": "TZS", "parent_account": "Other Current Assets"},
+		{"account_name": "Driver Daily Allowance",   "account_type": "Expense", "account_currency": "TZS", "parent_account": "Driver Expenses"},
+		{"account_name": "Driver Subsistence USD",   "account_type": "Expense", "account_currency": "USD", "parent_account": "Driver Expenses"},
+		{"account_name": "Road Tolls and Levies",    "account_type": "Expense", "account_currency": "TZS", "parent_account": "Other Expenses"},
+		{"account_name": "Border Crossing Fees",     "account_type": "Expense", "account_currency": "TZS", "parent_account": "Other Expenses"},
+		{"account_name": "Port Handling Charges",    "account_type": "Expense", "account_currency": "TZS", "parent_account": "Other Expenses"},
+		{"account_name": "Weigh Bridge Fees",        "account_type": "Expense", "account_currency": "TZS", "parent_account": "Other Expenses"},
+		{"account_name": "Loading and Offloading",   "account_type": "Expense", "account_currency": "TZS", "parent_account": "Other Expenses"},
+	]
+	for acc in accounts:
+		_make("Account", acc, unique_field="account_name")
 	frappe.db.commit()
-	print(f"Created '{name}' successfully.")
+
+
+# ── 3. Fixed Expenses ───────────────────────────────────────────────────────
+
+def create_fixed_expenses():
+	"""Create standard fixed expense templates linked to accounts."""
+	fixed_expenses = [
+		{
+			"description":       "Driver Daily Allowance (TZS)",
+			"currency":          "TZS", "fixed_value": 50000,
+			"expense_account":   "Driver Daily Allowance",
+			"cash_bank_account": "Petty Cash",
+		},
+		{
+			"description":       "Driver Subsistence (USD)",
+			"currency":          "USD", "fixed_value": 20,
+			"expense_account":   "Driver Subsistence USD",
+			"cash_bank_account": "Driver Cash Advance",
+		},
+		{
+			"description":       "Road Toll (Local Highway)",
+			"currency":          "TZS", "fixed_value": 3000,
+			"expense_account":   "Road Tolls and Levies",
+			"cash_bank_account": "Petty Cash",
+		},
+		{
+			"description":       "Weigh Bridge Fee",
+			"currency":          "TZS", "fixed_value": 5000,
+			"expense_account":   "Weigh Bridge Fees",
+			"cash_bank_account": "Petty Cash",
+		},
+		{
+			"description":       "DSM Port Entry Fee",
+			"currency":          "TZS", "fixed_value": 10000,
+			"expense_account":   "Port Handling Charges",
+			"cash_bank_account": "Petty Cash",
+		},
+		{
+			"description":       "Loading and Offloading Fee",
+			"currency":          "TZS", "fixed_value": 20000,
+			"expense_account":   "Loading and Offloading",
+			"cash_bank_account": "Petty Cash",
+		},
+		{
+			"description":       "Namanga Border Fee",
+			"currency":          "TZS", "fixed_value": 20000,
+			"expense_account":   "Border Crossing Fees",
+			"cash_bank_account": "Petty Cash",
+		},
+		{
+			"description":       "Tunduma Border Fee",
+			"currency":          "TZS", "fixed_value": 30000,
+			"expense_account":   "Border Crossing Fees",
+			"cash_bank_account": "Petty Cash",
+		},
+		{
+			"description":       "Mutukula Border Fee",
+			"currency":          "TZS", "fixed_value": 25000,
+			"expense_account":   "Border Crossing Fees",
+			"cash_bank_account": "Petty Cash",
+		},
+	]
+	for fe in fixed_expenses:
+		_make("Fixed Expenses", fe, unique_field="description")
+	frappe.db.commit()
+
+
+# ── 4. Trip Location Types ──────────────────────────────────────────────────
+
+def create_trip_location_types():
+	"""Create the standard trip location type categories."""
+	location_types = [
+		{"location_type": "Loading Point",    "loading_date": 1,    "arrival_date": 1},
+		{"location_type": "Offloading Point", "offloading_date": 1, "arrival_date": 1},
+		{"location_type": "Border Post",      "arrival_date": 1,    "departure_date": 1},
+		{"location_type": "Transit Stop",     "arrival_date": 1,    "departure_date": 1},
+		{"location_type": "Destination Port",  "arrival_date": 1,    "offloading_date": 1},
+	]
+	for lt in location_types:
+		_make("Trip Locations Type", lt, unique_field="location_type")
+	frappe.db.commit()
+
+
+# ── 5. Trip Locations ────────────────────────────────────────────────────────
+
+def create_trip_locations():
+	"""Create commonly used trip locations in East/Southern Africa."""
+	locations = [
+		# Tanzania
+		{"description": "Dar es Salaam Port",  "country": "Tanzania", "latitude": -6.824,  "longitude": 39.288},
+		{"description": "Arusha City",         "country": "Tanzania", "latitude": -3.387,  "longitude": 36.682},
+		{"description": "Dodoma City",         "country": "Tanzania", "latitude": -6.173,  "longitude": 35.739},
+		{"description": "Mwanza City",         "country": "Tanzania", "latitude": -2.516,  "longitude": 32.900},
+		{"description": "Iringa Town",         "country": "Tanzania", "latitude": -7.770,  "longitude": 35.692},
+		{"description": "Mbeya City",          "country": "Tanzania", "latitude": -8.900,  "longitude": 33.460},
+		{"description": "Tunduma Border",      "country": "Tanzania", "latitude": -9.300,  "longitude": 32.770},
+		{"description": "Mutukula Border",     "country": "Tanzania", "latitude": -1.014,  "longitude": 31.372},
+		# Kenya
+		{"description": "Nairobi CBD",         "country": "Kenya",   "latitude": -1.286,  "longitude": 36.817},
+		{"description": "Mombasa Port",        "country": "Kenya",   "latitude": -4.052,  "longitude": 39.666},
+		# Uganda
+		{"description": "Kampala City",        "country": "Uganda",  "latitude": 0.347,   "longitude": 32.582},
+		{"description": "Busia Border",        "country": "Uganda",  "latitude": 0.460,   "longitude": 34.090},
+		# Zambia
+		{"description": "Lusaka City",         "country": "Zambia",  "latitude": -15.416, "longitude": 28.282},
+		{"description": "Nakonde Border",      "country": "Zambia",  "latitude": -9.348,  "longitude": 32.767},
+	]
+	for loc in locations:
+		_make("Trip Locations", loc, unique_field="description")
+	frappe.db.commit()
+
+
+# ── 6. Cargo Types ──────────────────────────────────────────────────────────
+
+def create_cargo_types():
+	"""Create standard cargo type categories with required permits."""
+	cargo_types = [
+		{
+			"cargo_name": "Container 20ft",
+			"permits": [
+				{"permit_name": "TANCIS Clearance Certificate", "mandatory": 1, "permit_type": "Local Import"},
+				{"permit_name": "TBS Conformity Certificate",   "mandatory": 1, "permit_type": "Local Import"},
+			],
+		},
+		{
+			"cargo_name": "Container 40ft",
+			"permits": [
+				{"permit_name": "TANCIS Clearance Certificate", "mandatory": 1, "permit_type": "Local Import"},
+				{"permit_name": "TBS Conformity Certificate",   "mandatory": 1, "permit_type": "Local Import"},
+				{"permit_name": "Oversize Load Permit",          "mandatory": 0, "permit_type": "Transit Import"},
+			],
+		},
+		{
+			"cargo_name": "Bulk Cargo",
+			"permits": [
+				{"permit_name": "Weight Certificate",           "mandatory": 1, "permit_type": "Local Import"},
+				{"permit_name": "TANCIS Clearance Certificate", "mandatory": 1, "permit_type": "Transit Import"},
+			],
+		},
+		{
+			"cargo_name": "Fuel Tanker",
+			"permits": [
+				{"permit_name": "EWURA Licence",                "mandatory": 1, "permit_type": "Local Import"},
+				{"permit_name": "OSHA Safety Certificate",      "mandatory": 1, "permit_type": "Transit Import"},
+				{"permit_name": "TBS Fuel Quality Certificate", "mandatory": 1, "permit_type": "Local Import"},
+			],
+		},
+		{
+			"cargo_name": "Livestock",
+			"permits": [
+				{"permit_name": "Veterinary Health Certificate", "mandatory": 1, "permit_type": "Local Export"},
+				{"permit_name": "Movement Permit",               "mandatory": 1, "permit_type": "Local Export"},
+			],
+		},
+		{
+			"cargo_name": "General Cargo",
+			"permits": [
+				{"permit_name": "Packing List", "mandatory": 1, "permit_type": "Local Import"},
+			],
+		},
+		{
+			"cargo_name": "Dangerous Goods",
+			"permits": [
+				{"permit_name": "Dangerous Goods Declaration", "mandatory": 1, "permit_type": "Transit Import"},
+				{"permit_name": "OSHA Hazmat Permit",          "mandatory": 1, "permit_type": "Transit Import"},
+				{"permit_name": "Emergency Info Sheet (EIS)",  "mandatory": 1, "permit_type": "Transit Export"},
+			],
+		},
+		{
+			"cargo_name": "Refrigerated Cargo",
+			"permits": [
+				{"permit_name": "Temperature Log Sheet",        "mandatory": 1, "permit_type": "Local Import"},
+				{"permit_name": "Health Certificate",           "mandatory": 1, "permit_type": "Local Import"},
+				{"permit_name": "TANCIS Clearance Certificate", "mandatory": 1, "permit_type": "Transit Import"},
+			],
+		},
+	]
+	for ct in cargo_types:
+		if not frappe.db.exists("Cargo Types", ct["cargo_name"]):
+			doc = frappe.get_doc({"doctype": "Cargo Types", "cargo_name": ct["cargo_name"]})
+			for p in ct.get("permits", []):
+				doc.append("permits", p)
+			doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+
+
+# ── 7. Fuel Items ───────────────────────────────────────────────────────────
+
+def create_fuel_items():
+	"""Create default fuel item (Diesel only — no generic 'Fuel' item)."""
+	if frappe.db.exists("Item", "Diesel"):
+		# Fix item_type if it was created with wrong type
+		frappe.db.set_value("Item", "Diesel", "item_type", "Fuel")
+	else:
+		frappe.get_doc({
+			"doctype": "Item",
+			"item_code": "Diesel",
+			"item_name": "Diesel",
+			"item_type": "Fuel",
+			"is_stock_item": 0,
+		}).insert(ignore_permissions=True)
+	frappe.db.commit()
+
+
+# ── 8. Normalize account currencies ─────────────────────────────────────────
+
+def normalize_account_currencies():
+	"""Set TZS as default currency on all accounts that don't have one
+	or have a non-TZS/USD currency. USD accounts (e.g. Driver Subsistence)
+	are left untouched."""
+	usd_accounts = ["Driver Subsistence USD"]
+	all_accounts = frappe.get_all("Account", fields=["name", "account_currency"])
+	updated = 0
+	for acc in all_accounts:
+		if acc.name in usd_accounts:
+			continue
+		if acc.account_currency not in (None, "", "TZS"):
+			frappe.db.set_value("Account", acc.name, "account_currency", "TZS")
+			updated += 1
+	if updated:
+		frappe.db.commit()
