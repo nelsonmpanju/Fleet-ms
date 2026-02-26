@@ -71,13 +71,13 @@ def _columns():
 			"fieldname": "debit",
 			"label":     _("Debit"),
 			"fieldtype": "Currency",
-			"width":     120,
+			"width":     180,
 		},
 		{
 			"fieldname": "credit",
 			"label":     _("Credit"),
 			"fieldtype": "Currency",
-			"width":     120,
+			"width":     180,
 		},
 		{
 			"fieldname": "balance",
