@@ -380,41 +380,13 @@ def recommend_against_request(**args):
 
 
 @frappe.whitelist(allow_guest=True)
-def approve_request(**args):
-    args = frappe._dict(args)
-
-    # frappe.db.sql("UPDATE `tabRequested Funds Details` SET request_status = 'Approved', request_hidden_status = 0 WHERE name = %s", args.request_docname)
-    # return args.request_docname
-    # Mark the request as open
-    doc = frappe.get_doc("Requested Fund Details", args.request_docname)
-    doc.db_set("request_status", "Approved")
-    doc.db_set("request_hidden_status", "1")
-    doc.db_set("approved_by", args.user)
-    return "Request Updated"
-
-
-@frappe.whitelist(allow_guest=True)
-def reject_request(**args):
-    args = frappe._dict(args)
-
-    # frappe.db.sql("UPDATE `tabRequested Funds Details` SET request_status = 'Rejected', request_hidden_status = 0 WHERE name = %s", args.request_docname)
-    # return "OK"
-    # Mark the request as open
-    doc = frappe.get_doc("Requested Fund Details", args.request_docname)
-    doc.db_set("request_status", "Rejected")
-    doc.db_set("request_hidden_status", "2")
-    doc.db_set("approved_by", args.user)
-    return "Request Updated"
-
-
-@frappe.whitelist(allow_guest=True)
 def accounts_approval(**args):
     args = frappe._dict(args)
     local = json.loads(args.local)
 
     if args.reference:
         reference = frappe.get_doc("Requested Fund Details", args.reference)
-        if reference.request_status in ["Approved", "Accounts Cancelled"]:
+        if reference.request_status in ["Requested", "Recommended", "Pre-Approved", "Approved", "Accounts Cancelled"]:
             to_validate = [
                 {"fieldname": "posting_date", "label": "Posting Date"},
                 {"fieldname": "cost_center", "label": "Cost Center"},
@@ -449,15 +421,20 @@ def accounts_approval(**args):
             for field in to_save:
                 reference.db_set(field, local.get(field))
 
-            # Make GL Entries
-            gl_entries = get_gl_entries(
-                reference, args.parent_doctype, args.parent_docname
-            )
-            make_gl_entries(gl_entries)
+            # Create Ledger Entry (Trip rows) or GL entries (non-Trip legacy)
+            if reference.parenttype == "Trips":
+                from vsd_fleet_ms.vsd_fleet_ms.doctype.trips.trips import _make_expense_ledger_entry
+                _make_expense_ledger_entry(reference, approved_by=args.user)
+                # _make_expense_ledger_entry already sets request_status + accounts_approved_by
+            else:
+                gl_entries = get_gl_entries(
+                    reference, args.parent_doctype, args.parent_docname
+                )
+                make_gl_entries(gl_entries)
+                reference.db_set("request_status", "Accounts Approved")
+                reference.db_set("request_hidden_status", "1")
+                reference.db_set("accounts_approved_by", args.user)
 
-            reference.db_set("request_status", "Accounts Approved")
-            reference.db_set("request_hidden_status", "1")
-            reference.db_set("accounts_approved_by", args.user)
             parent = frappe.get_doc("Requested Payment", args.parent_docname)
             update_payment_status(parent)
             return "Request Updated"
@@ -472,45 +449,55 @@ def accounts_cancel(**args):
         reference = frappe.get_doc("Requested Fund Details", args.reference)
 
         if reference.request_status == "Accounts Approved":
-            paid_amount = get_paid_amount(
-                args.parent_doctype,
-                args.parent_docname,
-                reference.party_type,
-                reference.party,
-                reference.payable_account,
-            )
-            total_approved = get_total_approved(
-                args.parent_doctype,
-                args.parent_docname,
-                reference.party_type,
-                reference.party,
-                reference.payable_account,
-            )
-            in_account_currency = reference.request_amount * reference.conversion_rate
+            in_account_currency = flt(reference.request_amount) * flt(reference.conversion_rate or 1)
 
-            if (total_approved - (paid_amount + in_account_currency)) < 0:
-                frappe.throw(
-                    "Unable to cancel. Payment has already been made against the account. Please cancel the payment entry first."
-                    + "Paid: "
-                    + str(paid_amount)
-                    + " Total Approved: "
-                    + str(total_approved)
-                    + " Account Currency: "
-                    + str(in_account_currency)
-                )
+            if reference.ledger_entry:
+                # Ledger Entry path: block only if a Payment Entry has already been made
+                paid_amount_pe = flt(frappe.db.sql(
+                    """SELECT IFNULL(SUM(debit_in_account_currency), 0) as amt
+                    FROM `tabGL Entry`
+                    WHERE against_voucher_type = 'Requested Payment' AND against_voucher = %s
+                      AND voucher_type = 'Payment Entry'""",
+                    (args.parent_docname,),
+                    as_dict=1,
+                )[0].amt)
+                if paid_amount_pe > 0:
+                    frappe.throw(
+                        _("Unable to cancel. A payment of {0} has already been made. "
+                          "Please cancel the payment entry first.").format(paid_amount_pe)
+                    )
+                # Cancel the Ledger Entry (reverses its GL entries)
+                le = frappe.get_doc("Ledger Entry", reference.ledger_entry)
+                if le.docstatus == 1:
+                    le.cancel()
+                reference.db_set("ledger_entry", None)
             else:
-                # Make GL Entries
-                gl_entries = get_gl_entries(
-                    reference, args.parent_doctype, args.parent_docname
+                # GL entry path (non-Trip legacy rows)
+                paid_amount = get_paid_amount(
+                    args.parent_doctype, args.parent_docname,
+                    reference.party_type, reference.party, reference.payable_account,
                 )
+                total_approved = get_total_approved(
+                    args.parent_doctype, args.parent_docname,
+                    reference.party_type, reference.party, reference.payable_account,
+                )
+                if (total_approved - (paid_amount + in_account_currency)) < 0:
+                    frappe.throw(
+                        "Unable to cancel. Payment has already been made against the account. "
+                        "Please cancel the payment entry first. "
+                        "Paid: " + str(paid_amount) +
+                        " Total Approved: " + str(total_approved) +
+                        " Account Currency: " + str(in_account_currency)
+                    )
+                gl_entries = get_gl_entries(reference, args.parent_doctype, args.parent_docname)
                 make_gl_entries(gl_entries, True)
 
-                reference.db_set("request_status", "Accounts Cancelled")
-                reference.db_set("request_hidden_status", "1")
-                reference.db_set("accounts_approved_by", args.user)
-                parent = frappe.get_doc("Requested Payment", args.parent_docname)
-                update_payment_status(parent)
-                return "Request Updated"
+            reference.db_set("request_status", "Accounts Cancelled")
+            reference.db_set("request_hidden_status", "1")
+            reference.db_set("accounts_approved_by", args.user)
+            parent = frappe.get_doc("Requested Payment", args.parent_docname)
+            update_payment_status(parent)
+            return "Request Updated"
 
 
 def get_paid_amount(dt, dn, party_type, party, account):
@@ -725,30 +712,42 @@ def delete_gl_entries(
 
 
 def update_payment_status(doc):
-    paid_amount = frappe.db.sql(
-        """select ifnull(sum(debit_in_account_currency), 0) as amt 
-		from `tabGL Entry` where against_voucher_type = 'Requested Payment' and against_voucher = %s AND voucher_type <> 'Requested Payment'""",
-        (doc.name),
+    # Total approved: sum from child rows (Ledger Entry path for Trip rows)
+    total_from_rows = flt(frappe.db.sql(
+        """SELECT IFNULL(SUM(request_amount), 0) as total
+        FROM `tabRequested Fund Details`
+        WHERE parent = %s AND parenttype = %s AND request_status = 'Accounts Approved'""",
+        (doc.reference_docname, doc.reference_doctype),
         as_dict=1,
-    )[0].amt
+    )[0].total)
 
-    total_approved = frappe.db.sql(
-        """
-		select ifnull(sum(credit_in_account_currency), 0) as total_approved
-		from `tabGL Entry`
-		where against_voucher_type = 'Requested Payment'
-			and against_voucher = %s
-	""",
-        (doc.name),
+    # Backward compat: GL-entry based total (non-Trip legacy rows)
+    total_from_gl = flt(frappe.db.sql(
+        """SELECT IFNULL(SUM(credit_in_account_currency), 0) as total
+        FROM `tabGL Entry`
+        WHERE against_voucher_type = 'Requested Payment' AND against_voucher = %s""",
+        (doc.name,),
         as_dict=1,
-    )[0].total_approved
+    )[0].total)
 
+    total_approved = total_from_rows if total_from_rows > 0 else total_from_gl
+
+    # Paid amount from Payment Entry GL entries referencing this Requested Payment
+    paid_amount = flt(frappe.db.sql(
+        """SELECT IFNULL(SUM(debit_in_account_currency), 0) as amt
+        FROM `tabGL Entry`
+        WHERE against_voucher_type = 'Requested Payment' AND against_voucher = %s
+          AND voucher_type <> 'Requested Payment'""",
+        (doc.name,),
+        as_dict=1,
+    )[0].amt)
+
+    if total_approved <= 0:
+        return
     if paid_amount >= total_approved:
         frappe.db.set_value("Requested Payment", doc.name, "payment_status", "Paid")
     else:
-        frappe.db.set_value(
-            "Requested Payment", doc.name, "payment_status", "Waiting Payment"
-        )
+        frappe.db.set_value("Requested Payment", doc.name, "payment_status", "Waiting Payment")
 
 
 @frappe.whitelist(allow_guest=True)
@@ -804,52 +803,61 @@ def approve_request(**args):
     doc.db_set("approved_by", args.user)
     doc.db_set("approved_date", timestamp)
 
-    # Auto-create Ledger Entry on approval
-    if not doc.ledger_entry and doc.expense_account and flt(doc.request_amount) > 0:
+    # Auto-fill expense_account from Fixed Expenses master if missing
+    if doc.expense_type and not doc.expense_account:
+        fe = frappe.db.get_value(
+            "Fixed Expenses", doc.expense_type,
+            ["expense_account", "cash_bank_account"], as_dict=True
+        )
+        if fe and fe.expense_account:
+            doc.db_set("expense_account", fe.expense_account)
+            doc.expense_account = fe.expense_account
+
+    # Auto-set posting_date to today if missing
+    if not doc.posting_date:
+        doc.db_set("posting_date", nowdate())
+        doc.posting_date = nowdate()
+
+    # If all accounting fields are ready, auto-create the ledger/GL entry immediately
+    parent_doctype = args.get("parent_doctype")
+    parent_docname = args.get("parent_docname")
+
+    if doc.expense_account and doc.payable_account:
         try:
-            _auto_create_ledger_entry(doc)
+            if doc.parenttype == "Trips":
+                # Trip expense rows: create a proper Ledger Entry document
+                from vsd_fleet_ms.vsd_fleet_ms.doctype.trips.trips import _make_expense_ledger_entry
+                _make_expense_ledger_entry(doc, approved_by=args.user)
+            elif parent_doctype and parent_docname:
+                # Non-Trip rows (legacy): create GL entries directly
+                gl_entries = get_gl_entries(doc, parent_doctype, parent_docname)
+                make_gl_entries(gl_entries)
+                doc.db_set("request_status", "Accounts Approved")
+                doc.db_set("request_hidden_status", "1")
+                doc.db_set("accounts_approved_by", args.user)
+                doc.db_set("accounts_approved_on", timestamp)
+
+            if parent_doctype == "Requested Payment" and parent_docname:
+                parent = frappe.get_doc("Requested Payment", parent_docname)
+                update_payment_status(parent)
         except Exception as e:
-            frappe.log_error(f"Auto Ledger Entry creation failed for {doc.name}: {str(e)}")
+            error_msg = str(e)
+            frappe.log_error(
+                "Auto accounting entry failed for {0}: {1}".format(doc.name, error_msg),
+                "Approve Request Ledger"
+            )
+            # Show a visible warning — row stays at "Approved" so accounts team can complete it
+            frappe.msgprint(
+                _("Expense row <b>{0}</b> approved, but the Ledger Entry could not be created automatically:"
+                  "<br><br><i>{1}</i><br><br>"
+                  "Please open the Accounts Approval tab to complete the accounting step.").format(
+                    doc.name, error_msg
+                ),
+                indicator="orange",
+                title=_("Partial Approval — Accounts Step Pending"),
+            )
 
     return "Request Updated"
-
-
-def _auto_create_ledger_entry(row):
-    """Auto-create a Ledger Entry for an approved fund request row"""
-    from frappe.utils import nowdate as _nowdate
-
-    parent_doc = frappe.get_doc(row.parenttype, row.parent)
-    trip_name = parent_doc.name if row.parenttype == "Trips" else None
-
-    ledger_doc = frappe.get_doc(
-        dict(
-            doctype="Ledger Entry",
-            posting_date=row.requested_date or _nowdate(),
-            entry_type="Expense",
-            source_type="Trip Expense",
-            account=row.expense_account,
-            party_type=row.party_type,
-            party=row.party,
-            currency=row.request_currency
-            or frappe.db.get_value("Currency", {"enabled": 1}, "name")
-            or "USD",
-            amount=flt(row.request_amount),
-            reference_doctype="Trips" if trip_name else row.parenttype,
-            reference_name=trip_name or row.parent,
-            reference_trip=trip_name,
-            reference_trip_expense=row.name if trip_name else None,
-            description=row.request_description
-            or row.expense_type
-            or f"Expense for {row.parent}",
-            remarks=f"Auto-created on approval for {row.parent}",
-        )
-    )
-    ledger_doc.flags.ignore_permissions = True
-    ledger_doc.insert(ignore_permissions=True)
-    ledger_doc.submit()
-
-    row.db_set("ledger_entry", ledger_doc.name)
-    return ledger_doc
 
 
 @frappe.whitelist(allow_guest=True)
@@ -857,7 +865,6 @@ def reject_request(**args):
     args = frappe._dict(args)
     ts = time.time()
     timestamp = datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
-
     doc = frappe.get_doc("Requested Fund Details", args.request_docname)
     doc.db_set("request_status", "Rejected")
     doc.db_set("approved_by", args.user)
@@ -866,28 +873,15 @@ def reject_request(**args):
 
 
 @frappe.whitelist()
-def create_payment_for_rows(parent_docname, selected_rows):
-    """Create Ledger Entry payments for selected approved fund rows.
-    Called from the payment dialog on Requested Payment."""
-    selected_rows = json.loads(selected_rows) if isinstance(selected_rows, str) else selected_rows
-    parent_doc = frappe.get_doc("Requested Payment", parent_docname)
-
-    created_entries = []
-    for row_name in selected_rows:
-        row = frappe.get_doc("Requested Fund Details", row_name)
-        if row.request_status != "Accounts Approved":
-            continue
-        if row.journal_entry:
-            continue
-
-        # Create GL entries (payment) using existing accounting pattern
-        gl_entries = get_gl_entries(row, parent_doc.doctype, parent_doc.name)
-        make_gl_entries(gl_entries)
-
-        row.db_set("request_status", "Accounts Approved")
-        created_entries.append(row_name)
-
-    if created_entries:
-        update_payment_status(parent_doc)
-
-    return {"created": len(created_entries), "entries": created_entries}
+def create_payment_for_rows(parent_docname, selected_rows, cash_bank_account, mode_of_payment="Cash"):
+    """Create a Payment Entry for each selected Accounts-Approved fund row.
+    Delegates to the Payment Entry doctype which creates the GL entries on submit."""
+    from vsd_fleet_ms.vsd_fleet_ms.doctype.payment_entry.payment_entry import (
+        create_fund_payment_entry,
+    )
+    return create_fund_payment_entry(
+        parent_docname=parent_docname,
+        row_names=selected_rows,
+        cash_bank_account=cash_bank_account,
+        mode_of_payment=mode_of_payment,
+    )

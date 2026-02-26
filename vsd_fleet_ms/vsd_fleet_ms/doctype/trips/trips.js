@@ -8,58 +8,80 @@ frappe.ui.form.on('Trips', {
 		render_location_map(frm);
 		toggle_fuel_columns(frm);
 
-		// --- Action Buttons ---
-		if (frm.doc.docstatus === 1 && !frm.doc.trip_completed && frm.doc.trip_status !== "Breakdown") {
-			// Start Trip: Pending -> In Transit
+		// --- Trip Status Indicator ---
+		var status_color = { "Pending": "orange", "In Transit": "blue", "Completed": "green", "Breakdown": "red" };
+		if (frm.doc.trip_status) {
+			frm.dashboard.set_badge_indicator(__(frm.doc.trip_status), status_color[frm.doc.trip_status] || "grey");
+		}
+
+		// --- Trip Status Buttons (any non-cancelled trip) ---
+		if (frm.doc.docstatus !== 2 && !frm.doc.trip_completed && frm.doc.trip_status !== "Breakdown") {
+
+			// Start Trip: Pending -> In Transit (standalone — always visible)
 			if (frm.doc.trip_status === "Pending") {
 				frm.add_custom_button(__("Start Trip"), function () {
-					frappe.call({
-						method: 'vsd_fleet_ms.vsd_fleet_ms.doctype.trips.trips.start_trip',
-						args: { docname: frm.doc.name },
-						callback: function (r) {
-							if (r.message) {
-								frm.reload_doc();
-								frappe.msgprint(__("Trip started successfully"));
-							}
+					frappe.confirm(
+						__("Start this trip? The truck will be marked as <b>On Trip</b> and the driver will be marked as unavailable."),
+						function () {
+							frappe.call({
+								method: 'vsd_fleet_ms.vsd_fleet_ms.doctype.trips.trips.start_trip',
+								args: { docname: frm.doc.name },
+								freeze: true,
+								freeze_message: __("Starting trip..."),
+								callback: function (r) {
+									if (r.message) {
+										frm.reload_doc();
+										frappe.show_alert({ message: __("Trip started — truck is now On Trip"), indicator: "blue" });
+									}
+								}
+							});
 						}
-					});
-				}, __('Actions'));
+					);
+				});
 			}
 
-			// Complete Trip: In Transit -> Completed
+			// End Trip: In Transit -> Completed (standalone — always visible)
 			if (frm.doc.trip_status === "In Transit") {
-				frm.add_custom_button(__("Complete Trip"), function () {
-					frappe.confirm(__("Are you sure you want to complete this trip?"), function () {
+				frm.add_custom_button(__("End Trip"), function () {
+					frappe.confirm(
+						__("Mark trip as <b>Completed</b>? The truck and driver will be released back to Idle/Available."),
+						function () {
+							frappe.call({
+								method: 'vsd_fleet_ms.vsd_fleet_ms.doctype.trips.trips.complete_trip',
+								args: { docname: frm.doc.name },
+								freeze: true,
+								freeze_message: __("Completing trip..."),
+								callback: function (r) {
+									if (r.message) {
+										frm.reload_doc();
+										frappe.show_alert({ message: __("Trip completed — truck is now Idle"), indicator: "green" });
+									}
+								}
+							});
+						}
+					);
+				});
+			}
+
+			// Report Breakdown — kept in Actions group
+			frm.add_custom_button(__("Report Breakdown"), function () {
+				frappe.confirm(
+					__("Report a <b>Breakdown</b>? The truck will be set to Under Maintenance, the driver will be released, and a Trip Breakdown document will be created."),
+					function () {
 						frappe.call({
-							method: 'vsd_fleet_ms.vsd_fleet_ms.doctype.trips.trips.complete_trip',
+							method: 'vsd_fleet_ms.vsd_fleet_ms.doctype.trips.trips.create_breakdown',
 							args: { docname: frm.doc.name },
+							freeze: true,
+							freeze_message: __("Recording breakdown..."),
 							callback: function (r) {
 								if (r.message) {
-									frm.reload_doc();
-									frappe.msgprint(__("Trip completed successfully"));
+									frappe.show_alert({ message: __("Breakdown recorded — opening Trip Breakdown"), indicator: "red" });
+									frappe.set_route("Form", "Trip Breakdown", r.message);
 								}
 							}
 						});
-					});
-				}, __('Actions'));
-			}
-		}
-
-		// Create Breakdown Entry (only before submit, when Pending or In Transit)
-		if (!frm.doc.trip_completed && (frm.doc.trip_status === "Pending" || frm.doc.trip_status === "In Transit") && frm.doc.docstatus === 0) {
-			frm.add_custom_button(__('Create Breakdown Entry'), function () {
-				frappe.confirm(__('Do you want to create a breakdown entry?'), function () {
-					frappe.call({
-						method: 'vsd_fleet_ms.vsd_fleet_ms.doctype.trips.trips.create_breakdown',
-						args: { docname: frm.doc.name },
-						callback: function (r) {
-							if (r.message) {
-								frm.reload_doc();
-								frappe.msgprint(__("Breakdown entry created"));
-							}
-						}
-					});
-				});
+					}
+				);
 			}, __('Actions'));
 		}
 
@@ -69,6 +91,8 @@ frappe.ui.form.on('Trips', {
 				frappe.call({
 					method: 'vsd_fleet_ms.vsd_fleet_ms.doctype.trips.trips.create_resumption_trip',
 					args: { docname: frm.doc.name },
+					freeze: true,
+					freeze_message: __("Creating resumption trip..."),
 					callback: function (r) {
 						if (r.message) {
 							var doc = frappe.model.sync(r.message)[0];
@@ -77,6 +101,45 @@ frappe.ui.form.on('Trips', {
 					}
 				});
 			}, __('Actions'));
+		}
+
+		// ── Expenses quick-action buttons (In House trips, not cancelled) ────────
+		if (frm.doc.transporter_type === "In House" && frm.doc.docstatus !== 2) {
+
+			// Approve Fuel — Cash Purchase fuel rows waiting approval
+			if (frm.doc.fuel_source_type === "Cash Purchase") {
+				const pendingFuel = (frm.doc.fuel_request_history || []).filter(
+					r => r.status === "Open" || r.status === "Requested"
+				);
+				if (pendingFuel.length) {
+					frm.add_custom_button(__("Approve Fuel"), function () {
+						if (frm.is_dirty()) { frappe.msgprint(__("Please save the form first.")); return; }
+						show_approve_fuel_dialog(frm);
+					}, __("Expenses"));
+				}
+			}
+
+			// Approve Expenses — expense rows waiting manager/accounts approval
+			const pendingExp = (frm.doc.requested_fund_accounts_table || []).filter(
+				r => ["Requested", "Recommended", "Pre-Approved"].includes(r.request_status)
+			);
+			if (pendingExp.length) {
+				frm.add_custom_button(__("Approve Expenses"), function () {
+					if (frm.is_dirty()) { frappe.msgprint(__("Please save the form first.")); return; }
+					show_approve_expenses_dialog(frm);
+				}, __("Expenses"));
+			}
+
+			// Make Payment — Accounts Approved rows not yet paid
+			const approvedUnpaid = (frm.doc.requested_fund_accounts_table || []).filter(
+				r => r.request_status === "Accounts Approved" && !r.journal_entry
+			);
+			if (approvedUnpaid.length) {
+				frm.add_custom_button(__("Make Payment"), function () {
+					if (frm.is_dirty()) { frappe.msgprint(__("Please save the form first.")); return; }
+					show_make_payment_dialog(frm);
+				}, __("Expenses"));
+			}
 		}
 	},
 
@@ -191,6 +254,34 @@ frappe.ui.form.on('Fuel Requests Table', {
 // Ledger Entry is now auto-created on approval in Requested Payment.
 // Keep a manual fallback for edge cases where auto-creation may have failed.
 frappe.ui.form.on('Requested Fund Details', {
+	expense_type: function (frm, cdt, cdn) {
+		const row = locals[cdt][cdn];
+		if (!row.expense_type) return;
+		frappe.db.get_value(
+			'Fixed Expenses', row.expense_type,
+			['expense_account', 'cash_bank_account', 'currency', 'fixed_value'],
+			function (v) {
+				if (!v) return;
+				if (v.expense_account)   frappe.model.set_value(cdt, cdn, 'expense_account',  v.expense_account);
+				if (v.cash_bank_account) frappe.model.set_value(cdt, cdn, 'payable_account',   v.cash_bank_account);
+				if (v.currency)          frappe.model.set_value(cdt, cdn, 'request_currency',  v.currency);
+				if (v.fixed_value && !row.request_amount)
+					frappe.model.set_value(cdt, cdn, 'request_amount', v.fixed_value);
+			}
+		);
+	},
+
+	party: function (frm, cdt, cdn) {
+		const row = locals[cdt][cdn];
+		if (!row.party || row.party_type !== 'Supplier') return;
+		// Auto-fill payable account from the Supplier record
+		frappe.db.get_value('Supplier', row.party, 'payable_account', function (v) {
+			if (v && v.payable_account) {
+				frappe.model.set_value(cdt, cdn, 'payable_account', v.payable_account);
+			}
+		});
+	},
+
 	create_ledger_entry: function (frm, cdt, cdn) {
 		if (frm.is_dirty()) {
 			frappe.throw(__("Please Save First"));
@@ -310,6 +401,241 @@ function render_location_map(frm) {
 			_draw_map(map_id, locations);
 		}, 100);
 	}
+}
+
+
+// ── Expense quick-action dialogs ──────────────────────────────────────────────
+
+function show_approve_fuel_dialog(frm) {
+	// Fetch fuel rows AND trip-level settings in parallel so we can tell the
+	// user exactly what will happen when they approve (stock deduction vs GL booking).
+	Promise.all([
+		frappe.xcall(
+			"vsd_fleet_ms.vsd_fleet_ms.doctype.trips.trips.get_trip_fuel_rows",
+			{ trip_name: frm.doc.name, status_filter: JSON.stringify(["Open", "Requested"]) }
+		),
+		frappe.xcall(
+			"vsd_fleet_ms.vsd_fleet_ms.doctype.trips.trips.get_fuel_approval_preview",
+			{ trip_name: frm.doc.name }
+		),
+	]).then(([rows, preview]) => {
+		if (!rows || !rows.length) {
+			frappe.msgprint(__("No pending fuel requests found."));
+			return;
+		}
+
+		const is_inventory = preview && preview.fuel_source_type === "From Inventory";
+
+		const d = new frappe.ui.Dialog({
+			title: __("Approve Fuel Requests"),
+			fields: [{ fieldtype: "HTML", fieldname: "fuel_rows_html", options: build_fuel_row_table(rows, preview) }],
+			primary_action_label: __("Approve Selected"),
+			primary_action() {
+				const checked = d.$wrapper.find(".fuel-row-check:checked").map((_, el) => $(el).val()).get();
+				if (!checked.length) { frappe.msgprint(__("Please select at least one row.")); return; }
+				d.hide();
+				frappe.xcall(
+					"vsd_fleet_ms.vsd_fleet_ms.doctype.trips.trips.trip_approve_fuel_rows",
+					{ trip_name: frm.doc.name, row_names: JSON.stringify(checked) }
+				).then(r => {
+					let msg = __("{0} fuel row(s) approved.", [r.approved.length]);
+					if (is_inventory) {
+						msg += "<br>" + __("A Stock Entry (Material Issue) has been created to deduct fuel from inventory.");
+					} else {
+						msg += "<br>" + __("Expense rows have been added to the Expenses table. Use <b>Expenses → Approve Expenses</b> to post the accounting entries and then <b>Make Payment</b> to settle.");
+					}
+					if (r.errors.length) msg += "<br><b>" + __("Errors:") + "</b> " + r.errors.join("<br>");
+					frappe.msgprint({ title: __("Fuel Approved"), message: msg, indicator: r.errors.length ? "orange" : "green" });
+					frm.reload_doc();
+				});
+			},
+		});
+		d.show();
+		d.$wrapper.on("change", "#fuel-chk-all", function () {
+			d.$wrapper.find(".fuel-row-check").prop("checked", this.checked);
+		});
+	});
+}
+
+function show_approve_expenses_dialog(frm) {
+	frappe.xcall(
+		"vsd_fleet_ms.vsd_fleet_ms.doctype.trips.trips.get_trip_expense_rows",
+		{ trip_name: frm.doc.name, status_filter: JSON.stringify(["Requested", "Recommended", "Pre-Approved"]) }
+	).then(rows => {
+		if (!rows || !rows.length) {
+			frappe.msgprint(__("No pending expense requests found."));
+			return;
+		}
+		const d = new frappe.ui.Dialog({
+			title: __("Approve Expenses"),
+			fields: [{ fieldtype: "HTML", fieldname: "exp_rows_html", options: build_expense_row_table(rows, true) }],
+			primary_action_label: __("Approve Selected"),
+			primary_action() {
+				const checked = d.$wrapper.find(".exp-row-check:checked").map((_, el) => $(el).val()).get();
+				if (!checked.length) { frappe.msgprint(__("Please select at least one row.")); return; }
+				d.hide();
+				frappe.xcall(
+					"vsd_fleet_ms.vsd_fleet_ms.doctype.trips.trips.trip_approve_expense_rows",
+					{ trip_name: frm.doc.name, row_names: JSON.stringify(checked) }
+				).then(r => {
+					frappe.show_alert({
+						message: __("{0} expense(s) approved.", [r.approved.length])
+							+ (r.errors.length ? "\n" + r.errors.join("\n") : ""),
+						indicator: r.errors.length ? "orange" : "green"
+					});
+					frm.reload_doc();
+				});
+			}
+		});
+		d.show();
+		d.$wrapper.on("change", "#exp-chk-all", function () {
+			d.$wrapper.find(".exp-row-check").prop("checked", this.checked);
+		});
+	});
+}
+
+function show_make_payment_dialog(frm) {
+	frappe.xcall(
+		"vsd_fleet_ms.vsd_fleet_ms.doctype.trips.trips.get_trip_expense_rows",
+		{ trip_name: frm.doc.name, status_filter: JSON.stringify(["Accounts Approved"]) }
+	).then(allRows => {
+		const rows = (allRows || []).filter(r => !r.journal_entry);
+		if (!rows.length) {
+			frappe.msgprint(__("No approved unpaid expenses found."));
+			return;
+		}
+		const d = new frappe.ui.Dialog({
+			title: __("Make Payment"),
+			fields: [
+				{
+					fieldtype: "Link",
+					fieldname: "cash_bank_account",
+					label: __("Cash / Bank Account"),
+					options: "Account",
+					reqd: 1,
+					get_query: () => ({ filters: { account_type: ["in", ["Cash", "Bank"]], is_group: 0 } }),
+				},
+				{
+					fieldtype: "Select",
+					fieldname: "mode_of_payment",
+					label: __("Mode of Payment"),
+					options: "Cash\nBank Transfer\nCheque\nMobile Money",
+					default: "Cash",
+				},
+				{ fieldtype: "HTML", fieldname: "exp_rows_html", options: build_expense_row_table(rows, false) },
+			],
+			primary_action_label: __("Create Payment Entry"),
+			primary_action(values) {
+				if (!values.cash_bank_account) { frappe.msgprint(__("Please select a Cash / Bank Account.")); return; }
+				const checked = d.$wrapper.find(".exp-row-check:checked").map((_, el) => $(el).val()).get();
+				if (!checked.length) { frappe.msgprint(__("Please select at least one row.")); return; }
+				d.hide();
+				frappe.xcall(
+					"vsd_fleet_ms.vsd_fleet_ms.doctype.trips.trips.trip_make_payment",
+					{
+						trip_name: frm.doc.name,
+						row_names: JSON.stringify(checked),
+						cash_bank_account: values.cash_bank_account,
+						mode_of_payment: values.mode_of_payment || "Cash",
+					}
+				).then(r => {
+					frappe.show_alert({
+						message: __("{0} payment entry(ies) created.", [r.created])
+							+ (r.errors.length ? "\n" + r.errors.join("\n") : ""),
+						indicator: r.errors.length ? "orange" : "green"
+					});
+					frm.reload_doc();
+				});
+			}
+		});
+		d.show();
+		d.$wrapper.on("change", "#exp-chk-all", function () {
+			d.$wrapper.find(".exp-row-check").prop("checked", this.checked);
+		});
+	});
+}
+
+// ── Dialog table builders ─────────────────────────────────────────────────────
+
+function build_expense_row_table(rows, show_accounts) {
+	let html = `<div style="max-height:400px;overflow-y:auto">
+		<table class="table table-bordered table-sm" style="font-size:13px">
+		<thead><tr>
+			<th style="width:32px"><input type="checkbox" id="exp-chk-all" checked title="Select all"></th>
+			<th>${__("Expense Type")}</th>
+			<th>${__("Amount")}</th>
+			<th>${__("Status")}</th>`;
+	if (show_accounts) {
+		html += `<th>${__("Expense Acct")}</th><th>${__("Payable Acct")}</th>`;
+	}
+	html += `</tr></thead><tbody>`;
+
+	rows.forEach(r => {
+		const amt = parseFloat(r.request_amount || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
+		const expAcc = r.expense_account  || `<span style="color:red">NOT SET</span>`;
+		const payAcc = r.payable_account  || `<span style="color:red">NOT SET</span>`;
+		html += `<tr>
+			<td><input type="checkbox" class="exp-row-check" value="${r.name}" checked></td>
+			<td>${r.expense_type || "—"}</td>
+			<td>${r.request_currency || ""} ${amt}</td>
+			<td>${r.request_status || "—"}</td>`;
+		if (show_accounts) {
+			html += `<td>${expAcc}</td><td>${payAcc}</td>`;
+		}
+		html += `</tr>`;
+	});
+	html += `</tbody></table></div>`;
+	return html;
+}
+
+function build_fuel_row_table(rows, preview) {
+	// ── Action banner — tells the user what will happen on approval ───────────
+	const is_inventory = preview && preview.fuel_source_type === "From Inventory";
+	let banner = "";
+	if (preview) {
+		if (is_inventory) {
+			const wh = preview.warehouse || __("(warehouse not set)");
+			banner = `
+			<div class="alert alert-primary" style="font-size:12px;padding:8px 12px;margin-bottom:10px;border-radius:6px">
+				<b>📦 ${__("From Inventory")}</b><br>
+				${__("Approving will create a <b>Stock Entry (Material Issue)</b> and deduct the fuel quantity from warehouse: <b>{0}</b>.", [wh])}
+				${__("The fuel cost flows through stock valuation — no separate cash payment is needed.")}
+			</div>`;
+		} else {
+			const exp = preview.expense_account || __("(not set)");
+			const cash = preview.cash_account || __("(not set)");
+			banner = `
+			<div class="alert alert-warning" style="font-size:12px;padding:8px 12px;margin-bottom:10px;border-radius:6px">
+				<b>💳 ${__("Cash Purchase")}</b><br>
+				${__("Approving will add the fuel cost to the <b>Expenses</b> table as a pending expense.")}
+				${__("Accounting entry: <b>{0}</b> Dr / <b>{1}</b> Cr.", [exp, cash])}<br>
+				${__("After approval, use <b>Expenses → Approve Expenses</b> then <b>Make Payment</b> to settle.")}
+			</div>`;
+		}
+	}
+
+	let html = banner + `<div style="max-height:340px;overflow-y:auto">
+		<table class="table table-bordered table-sm" style="font-size:13px">
+		<thead><tr>
+			<th style="width:32px"><input type="checkbox" id="fuel-chk-all" checked title="Select all"></th>
+			<th>${__("Fuel Item")}</th>
+			<th>${__("Qty (L)")}</th>
+			<th>${__("Total Cost")}</th>
+			<th>${__("Status")}</th>
+		</tr></thead><tbody>`;
+
+	rows.forEach(r => {
+		const cost = parseFloat(r.total_cost || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
+		html += `<tr>
+			<td><input type="checkbox" class="fuel-row-check" value="${r.name}" checked></td>
+			<td>${r.item_name || r.item_code || "—"}</td>
+			<td>${r.quantity || 0}</td>
+			<td>${r.currency || ""} ${cost}</td>
+			<td>${r.status || "—"}</td>
+		</tr>`;
+	});
+	html += `</tbody></table></div>`;
+	return html;
 }
 
 

@@ -2,30 +2,36 @@
  "actions": [],
  "allow_import": 1,
  "allow_rename": 1,
- "autoname": "format:LED-.#####",
+ "autoname": "LED-.#####",
  "creation": "2026-02-16 23:45:00",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
   "posting_date",
-  "entry_type",
-  "source_type",
   "column_break_main",
-  "currency",
+  "entry_type",
   "amount",
-  "status",
+  "cb_amount",
+  "currency",
+  "section_notes",
+  "remarks",
   "section_accounts",
   "account",
+  "cb_accounts",
+  "contra_account",
+  "debit_credit",
+  "sb_reference",
   "party_type",
-  "party",
   "column_break_reference",
+  "party",
+  "source_type",
   "reference_doctype",
+  "cb_ref2",
   "reference_name",
   "reference_trip",
   "reference_trip_expense",
-  "section_notes",
-  "remarks",
+  "status",
   "amended_from"
  ],
  "fields": [
@@ -33,27 +39,31 @@
    "fieldname": "posting_date",
    "fieldtype": "Date",
    "in_list_view": 1,
-   "label": "Posting Date",
+   "label": "Date",
    "reqd": 1
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "entry_type",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Entry Type",
-   "options": "Income\nExpense",
+   "options": "Income\nExpense\nOpening Balance\nPayment",
    "reqd": 1
   },
   {
-   "default": "Manual",
-   "fieldname": "source_type",
-   "fieldtype": "Select",
+   "fieldname": "amount",
+   "fieldtype": "Currency",
    "in_list_view": 1,
-   "label": "Source Type",
-   "options": "Manual\nTrip Expense\nSales Invoice\nPurchase Invoice\nStock Adjustment"
+   "label": "Amount",
+   "options": "currency",
+   "reqd": 1
   },
   {
-   "fieldname": "column_break_main",
+   "fieldname": "cb_amount",
    "fieldtype": "Column Break"
   },
   {
@@ -64,24 +74,19 @@
    "reqd": 1
   },
   {
-   "fieldname": "amount",
-   "fieldtype": "Currency",
-   "in_list_view": 1,
-   "label": "Amount",
-   "reqd": 1
+   "fieldname": "section_notes",
+   "fieldtype": "Section Break"
   },
   {
-   "default": "Draft",
-   "fieldname": "status",
-   "fieldtype": "Select",
-   "label": "Status",
-   "options": "Draft\nSubmitted\nCancelled",
-   "read_only": 1
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Description"
   },
   {
    "fieldname": "section_accounts",
    "fieldtype": "Section Break",
-   "label": "Accounts & Party"
+   "label": "Accounts"
   },
   {
    "fieldname": "account",
@@ -92,10 +97,41 @@
    "reqd": 1
   },
   {
+   "fieldname": "cb_accounts",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:['Income','Expense','Payment'].includes(doc.entry_type)",
+   "fieldname": "contra_account",
+   "fieldtype": "Link",
+   "label": "Contra Account",
+   "mandatory_depends_on": "eval:['Income','Expense','Payment'].includes(doc.entry_type)",
+   "options": "Account"
+  },
+  {
+   "default": "Debit",
+   "depends_on": "eval:doc.entry_type === 'Opening Balance' || doc.entry_type === 'Payment'",
+   "fieldname": "debit_credit",
+   "fieldtype": "Select",
+   "label": "Direction",
+   "mandatory_depends_on": "eval:doc.entry_type === 'Opening Balance' || doc.entry_type === 'Payment'",
+   "options": "Debit\nCredit"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "sb_reference",
+   "fieldtype": "Section Break",
+   "label": "Reference & Party"
+  },
+  {
    "fieldname": "party_type",
    "fieldtype": "Select",
    "label": "Party Type",
    "options": "\nCustomer\nSupplier\nDriver\nAgent"
+  },
+  {
+   "fieldname": "column_break_reference",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "party",
@@ -104,14 +140,21 @@
    "options": "party_type"
   },
   {
-   "fieldname": "column_break_reference",
-   "fieldtype": "Column Break"
+   "default": "Manual",
+   "fieldname": "source_type",
+   "fieldtype": "Select",
+   "label": "Source",
+   "options": "Manual\nTrip Expense\nSales Invoice\nPurchase Invoice\nPayment Entry\nStock Adjustment"
   },
   {
    "fieldname": "reference_doctype",
    "fieldtype": "Select",
    "label": "Reference DocType",
-   "options": "\nSales Invoice\nPurchase Invoice\nTrips\nStock Entry"
+   "options": "\nSales Invoice\nPurchase Invoice\nPayment Entry\nTrips\nStock Entry"
+  },
+  {
+   "fieldname": "cb_ref2",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "reference_name",
@@ -133,13 +176,13 @@
    "options": "Requested Fund Details"
   },
   {
-   "fieldname": "section_notes",
-   "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "remarks",
-   "fieldtype": "Small Text",
-   "label": "Remarks"
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Status",
+   "options": "Draft\nSubmitted\nCancelled",
+   "read_only": 1
   },
   {
    "fieldname": "amended_from",
@@ -154,11 +197,11 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-02-17 08:49:57.644823",
+ "modified": "2026-02-22 03:36:25.572952",
  "modified_by": "Administrator",
  "module": "VSD Fleet MS",
  "name": "Ledger Entry",
- "naming_rule": "Expression (old style)",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {
@@ -193,5 +236,6 @@
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
+ "title_field": "remarks",
  "track_changes": 1
 }

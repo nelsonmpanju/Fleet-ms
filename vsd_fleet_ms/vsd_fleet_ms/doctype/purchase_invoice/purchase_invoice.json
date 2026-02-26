@@ -24,6 +24,9 @@
   "status",
   "payment_status",
   "invoice_type",
+  "expense_account",
+  "payable_account",
+  "ledger_entry",
   "reference_trip",
   "fuel_request_reference",
   "set_warehouse",
@@ -119,6 +122,27 @@
    "fieldtype": "Select",
    "label": "Invoice Type",
    "options": "Fuel\nMaintenance\nTrip Expense\nOther"
+  },
+  {
+   "description": "Expense account to debit when this invoice is submitted (e.g. Fuel Expense, Maintenance Expense)",
+   "fieldname": "expense_account",
+   "fieldtype": "Link",
+   "label": "Expense Account",
+   "options": "Account"
+  },
+  {
+   "description": "Accounts Payable (Creditors) account — auto-filled from Supplier; used when posting GL entries",
+   "fieldname": "payable_account",
+   "fieldtype": "Link",
+   "label": "Payable Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "ledger_entry",
+   "fieldtype": "Link",
+   "label": "Ledger Entry",
+   "options": "Ledger Entry",
+   "read_only": 1
   },
   {
    "fieldname": "reference_trip",

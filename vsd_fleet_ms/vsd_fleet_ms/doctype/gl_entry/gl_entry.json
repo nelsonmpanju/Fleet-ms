@@ -2,33 +2,140 @@
  "actions": [],
  "allow_import": 1,
  "allow_rename": 1,
- "autoname": "format:GLE-.#####",
+ "autoname": "GLE-.#####",
+ "creation": "2026-02-16 16:20:29.985494",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
- "field_order": ["posting_date", "account", "party_type", "party", "debit", "credit", "debit_in_account_currency", "credit_in_account_currency", "account_currency", "voucher_type", "voucher_no", "against", "against_voucher_type", "against_voucher", "cost_center", "fiscal_year"],
- "fields": [
-  {"fieldname":"posting_date","fieldtype":"Date","in_list_view":1,"label":"Posting Date"},
-  {"fieldname":"account","fieldtype":"Link","in_list_view":1,"label":"Account","options":"Account"},
-  {"fieldname":"party_type","fieldtype":"Data","label":"Party Type"},
-  {"fieldname":"party","fieldtype":"Data","label":"Party"},
-  {"fieldname":"debit","fieldtype":"Currency","label":"Debit"},
-  {"fieldname":"credit","fieldtype":"Currency","label":"Credit"},
-  {"fieldname":"debit_in_account_currency","fieldtype":"Currency","label":"Debit (Account Currency)"},
-  {"fieldname":"credit_in_account_currency","fieldtype":"Currency","label":"Credit (Account Currency)"},
-  {"fieldname":"account_currency","fieldtype":"Link","label":"Account Currency","options":"Currency"},
-  {"fieldname":"voucher_type","fieldtype":"Data","label":"Voucher Type"},
-  {"fieldname":"voucher_no","fieldtype":"Data","label":"Voucher No"},
-  {"fieldname":"against","fieldtype":"Data","label":"Against"},
-  {"fieldname":"against_voucher_type","fieldtype":"Data","label":"Against Voucher Type"},
-  {"fieldname":"against_voucher","fieldtype":"Data","label":"Against Voucher"},
-  {"fieldname":"cost_center","fieldtype":"Link","label":"Cost Center","options":"Cost Center"},
-  {"fieldname":"fiscal_year","fieldtype":"Data","label":"Fiscal Year"}
+ "field_order": [
+  "posting_date",
+  "account",
+  "party_type",
+  "party",
+  "debit",
+  "credit",
+  "debit_in_account_currency",
+  "credit_in_account_currency",
+  "account_currency",
+  "voucher_type",
+  "voucher_no",
+  "against",
+  "against_voucher_type",
+  "against_voucher",
+  "cost_center",
+  "fiscal_year"
  ],
+ "fields": [
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Posting Date"
+  },
+  {
+   "fieldname": "account",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "party_type",
+   "fieldtype": "Data",
+   "label": "Party Type"
+  },
+  {
+   "fieldname": "party",
+   "fieldtype": "Data",
+   "label": "Party"
+  },
+  {
+   "fieldname": "debit",
+   "fieldtype": "Currency",
+   "label": "Debit"
+  },
+  {
+   "fieldname": "credit",
+   "fieldtype": "Currency",
+   "label": "Credit"
+  },
+  {
+   "fieldname": "debit_in_account_currency",
+   "fieldtype": "Currency",
+   "label": "Debit (Account Currency)"
+  },
+  {
+   "fieldname": "credit_in_account_currency",
+   "fieldtype": "Currency",
+   "label": "Credit (Account Currency)"
+  },
+  {
+   "fieldname": "account_currency",
+   "fieldtype": "Link",
+   "label": "Account Currency",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "voucher_type",
+   "fieldtype": "Data",
+   "label": "Voucher Type"
+  },
+  {
+   "fieldname": "voucher_no",
+   "fieldtype": "Data",
+   "label": "Voucher No"
+  },
+  {
+   "fieldname": "against",
+   "fieldtype": "Data",
+   "label": "Against"
+  },
+  {
+   "fieldname": "against_voucher_type",
+   "fieldtype": "Data",
+   "label": "Against Voucher Type"
+  },
+  {
+   "fieldname": "against_voucher",
+   "fieldtype": "Data",
+   "label": "Against Voucher"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "fiscal_year",
+   "fieldtype": "Data",
+   "label": "Fiscal Year"
+  }
+ ],
+ "links": [],
+ "modified": "2026-02-22 03:39:01.547134",
+ "modified_by": "Administrator",
  "module": "VSD Fleet MS",
  "name": "GL Entry",
- "permissions": [{"role":"System Manager","read":1,"write":1,"create":1,"delete":1,"report":1,"export":1,"print":1,"email":1,"share":1}],
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
+ "states": [],
  "track_changes": 1
 }

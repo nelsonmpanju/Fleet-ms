@@ -330,8 +330,8 @@
    "is_query_report": 0,
    "label": "Fleet Operations",
    "link_count": 0,
-   "link_to": "Fleet Operations",
-   "link_type": "Dashboard",
+   "link_to": "fleet-operations-dashboard",
+   "link_type": "Page",
    "onboard": 0,
    "type": "Link"
   },
@@ -340,8 +340,8 @@
    "is_query_report": 0,
    "label": "Fleet Finance",
    "link_count": 0,
-   "link_to": "Fleet Finance",
-   "link_type": "Dashboard",
+   "link_to": "fleet-finance-dashboard",
+   "link_type": "Page",
    "onboard": 0,
    "type": "Link"
   },
@@ -398,6 +398,72 @@
    "onboard": 0,
    "report_ref_doctype": "Sales Invoice",
    "type": "Link"
+  },
+  {
+   "type": "Link",
+   "label": "Trial Balance",
+   "link_type": "Report",
+   "link_to": "Trial Balance",
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Vehicle Profitability",
+   "link_type": "Report",
+   "link_to": "Vehicle Profitability",
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Fuel Cost Per KM",
+   "link_type": "Report",
+   "link_to": "Fuel Cost Per KM",
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Booking Revenue",
+   "link_type": "Report",
+   "link_to": "Booking Revenue",
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Driver Expense Summary",
+   "link_type": "Report",
+   "link_to": "Driver Expense Summary",
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Account Ledger",
+   "link_type": "Report",
+   "link_to": "Account Ledger",
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Cash Bank Book",
+   "link_type": "Report",
+   "link_to": "Cash Bank Book",
+   "dependencies": "",
+   "is_query_report": 1
+  },
+  {
+   "type": "Link",
+   "label": "Party Ledger",
+   "link_type": "Report",
+   "link_to": "Party Ledger",
+   "dependencies": "",
+   "is_query_report": 1
+  },
+  {
+   "type": "Link",
+   "label": "Vehicle Ledger",
+   "link_type": "Report",
+   "link_to": "Vehicle Ledger",
+   "dependencies": "",
+   "is_query_report": 1
   },
   {
    "hidden": 0,

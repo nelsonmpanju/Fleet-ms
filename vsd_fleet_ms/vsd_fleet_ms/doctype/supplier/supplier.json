@@ -11,6 +11,7 @@
   "supplier_name",
   "supplier_type",
   "default_currency",
+  "payable_account",
   "phone",
   "email",
   "column_break_uegl",
@@ -43,6 +44,13 @@
    "fieldtype": "Link",
    "label": "Default Currency",
    "options": "Currency"
+  },
+  {
+   "fieldname": "payable_account",
+   "fieldtype": "Link",
+   "label": "Payable Account (Creditors)",
+   "options": "Account",
+   "description": "Creditor account used when posting expense GL entries for this supplier"
   },
   {
    "fieldname": "phone",

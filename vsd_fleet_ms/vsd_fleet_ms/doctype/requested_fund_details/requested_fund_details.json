@@ -47,6 +47,7 @@
   "request_hidden_status",
   "expense_account_currency",
   "payable_account_currency",
+  "cash_on_hand_account",
   "conversion_rate",
   "section_break_dhz95",
   "cost_center",
@@ -303,6 +304,16 @@
    "read_only": 1
   },
   {
+   "fetch_from": "expense_type.cash_on_hand_account",
+   "fetch_if_empty": 1,
+   "fieldname": "cash_on_hand_account",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Cash on Hand Account",
+   "options": "Account",
+   "read_only": 1
+  },
+  {
    "default": "1",
    "fieldname": "conversion_rate",
    "fieldtype": "Float",
@@ -335,8 +346,8 @@
    "fieldname": "journal_entry",
    "fieldtype": "Link",
    "hidden": 1,
-   "label": "Journal Entry",
-   "options": "Journal Entry",
+   "label": "Payment Entry",
+   "options": "Payment Entry",
    "read_only": 1
   },
   {
@@ -359,7 +370,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2023-06-13 12:54:27.296366",
+ "modified": "2026-02-22 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "VSD Fleet MS",
  "name": "Requested Fund Details",

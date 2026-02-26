@@ -128,98 +128,236 @@ frappe.ui.form.on('Requested Payment', {
 		cur_frm.get_field("account_approval_buttons").wrapper.innerHTML = '<p class="text-muted small">Total Amount Paid</p><b>USD ' + total_paid_usd.toLocaleString() + ' <br> TZS ' + total_paid_tsh.toLocaleString() + '</b>';
 		
 		}
-		//Make payment button - opens dialog to select approved rows
-		frm.add_custom_button(__('Make Payment'),
-			function() {
+		// Show Make Payment when there are Approved rows (with accounts filled) or Accounts Approved rows without payment
+		var has_unpaid = (frm.doc.accounts_approval || []).some(function(r) {
+			return !r.journal_entry && (
+				r.request_status === 'Accounts Approved' ||
+				(r.request_status === 'Approved' && r.payable_account)
+			);
+		});
+		if (has_unpaid) {
+			frm.add_custom_button(__('Make Payment'), function() {
 				frm.events.make_payment(frm);
-			}
-		);
+			}, __('Create'));
+		}
 
-		frm.add_custom_button(__('Accounting Ledger'), function() {
-			frappe.route_options = {
-				voucher_no: frm.doc.name,
-				group_by_voucher: false
-			};
-			frappe.set_route("query-report", "General Ledger");
-		}, __("View"));
+		frm.add_custom_button(__('View Ledger'), function() {
+			frm.events.view_ledger(frm);
+		}, __('View'));
 	},
 
 	make_payment: function(frm) {
-		// Get approved rows that don't have journal_entry yet (unpaid)
+		// Show rows that are ready for payment:
+		//   - "Accounts Approved" (GL already posted), OR
+		//   - "Approved" with both expense_account and payable_account set
+		//     (accounts step will run inline when payment is created)
 		var approved_rows = (frm.doc.accounts_approval || []).filter(function(row) {
-			return row.request_status === "Approved" && !row.journal_entry;
+			return !row.journal_entry && (
+				row.request_status === 'Accounts Approved' ||
+				(row.request_status === 'Approved' && row.expense_account && row.payable_account)
+			);
 		});
 
 		if (!approved_rows.length) {
-			frappe.msgprint(__("No approved unpaid fund requests found."));
+			frappe.msgprint(__(
+				'No payable fund requests found. Rows must be Approved (with Expense Account and ' +
+				'Payable Account set) or Accounts Approved, and must not already have a payment.'
+			));
 			return;
 		}
 
-		// Build selection dialog (similar to Cargo Registration invoice pattern)
-		var table_html = '<div class="results my-3" style="border: 1px solid #d1d8dd; border-radius: 3px; max-height: 400px; overflow: auto;">';
-		table_html += '<div class="list-item list-item--head">';
-		table_html += '<div class="list-item__content" style="flex: 0 0 30px;"><input type="checkbox" class="select-all"></div>';
-		table_html += '<div class="list-item__content ellipsis"><span class="text-muted">Expense Type</span></div>';
-		table_html += '<div class="list-item__content ellipsis"><span class="text-muted">Amount</span></div>';
-		table_html += '<div class="list-item__content ellipsis"><span class="text-muted">Currency</span></div>';
-		table_html += '<div class="list-item__content ellipsis"><span class="text-muted">Party</span></div>';
-		table_html += '</div>';
+		// Build row selection HTML
+		var table_html = [
+			'<div class="results my-3" style="border:1px solid #d1d8dd;border-radius:3px;max-height:300px;overflow:auto;">',
+			'<div class="list-item list-item--head">',
+			'  <div class="list-item__content" style="flex:0 0 30px"><input type="checkbox" class="select-all" checked></div>',
+			'  <div class="list-item__content"><span class="text-muted">Expense</span></div>',
+			'  <div class="list-item__content"><span class="text-muted">Amount</span></div>',
+			'  <div class="list-item__content"><span class="text-muted">Cur</span></div>',
+			'  <div class="list-item__content"><span class="text-muted">Party</span></div>',
+			'  <div class="list-item__content"><span class="text-muted">Payable Account</span></div>',
+			'</div>',
+		].join('');
 
 		approved_rows.forEach(function(row) {
-			table_html += '<div class="list-item">';
-			table_html += '<div class="list-item__content" style="flex: 0 0 30px;">';
-			table_html += '<input type="checkbox" class="payment-row-check" data-row-name="' + (row.reference || row.name) + '">';
-			table_html += '</div>';
-			table_html += '<div class="list-item__content ellipsis">' + (row.expense_type || '-') + '</div>';
-			table_html += '<div class="list-item__content ellipsis"><b>' + (row.request_amount || 0).toLocaleString() + '</b></div>';
-			table_html += '<div class="list-item__content ellipsis">' + (row.request_currency || '-') + '</div>';
-			table_html += '<div class="list-item__content ellipsis">' + (row.party || '-') + '</div>';
-			table_html += '</div>';
+			var rowName = row.reference || row.name;
+			table_html += [
+				'<div class="list-item">',
+				'  <div class="list-item__content" style="flex:0 0 30px">',
+				'    <input type="checkbox" class="payment-row-check" data-row-name="' + rowName + '" checked>',
+				'  </div>',
+				'  <div class="list-item__content ellipsis">' + (row.expense_type || '-') + '</div>',
+				'  <div class="list-item__content ellipsis"><b>' + (row.request_amount || 0).toLocaleString() + '</b></div>',
+				'  <div class="list-item__content ellipsis">' + (row.request_currency || '-') + '</div>',
+				'  <div class="list-item__content ellipsis">' + (row.party || '-') + '</div>',
+				'  <div class="list-item__content ellipsis text-muted small">' + (row.payable_account || '-') + '</div>',
+				'</div>',
+			].join('');
 		});
 		table_html += '</div>';
 
+		// Default cash account: use the first row's cash_on_hand_account if set
+		var default_cash_account = approved_rows[0].cash_on_hand_account || 'Petty Cash';
+
 		var dialog = new frappe.ui.Dialog({
-			title: __('Select Approved Requests for Payment'),
+			title: __('Create Payment Entry'),
 			fields: [
-				{ fieldtype: 'HTML', fieldname: 'payment_rows', options: table_html }
+				{
+					fieldtype: 'Link',
+					fieldname: 'cash_bank_account',
+					label: __('Cash / Bank Account'),
+					options: 'Account',
+					reqd: 1,
+					description: __('Account to credit (actual cash paid out)'),
+					default: default_cash_account,
+				},
+				{
+					fieldtype: 'Select',
+					fieldname: 'mode_of_payment',
+					label: __('Mode of Payment'),
+					options: 'Cash\nCheque\nBank Transfer\nM-Pesa',
+					default: 'Cash',
+				},
+				{
+					fieldtype: 'Section Break',
+					label: __('Select Rows to Pay'),
+				},
+				{
+					fieldtype: 'HTML',
+					fieldname: 'payment_rows',
+					options: table_html,
+				},
 			],
 			size: 'large',
-			primary_action_label: __('Create Payment'),
-			primary_action: function() {
+			primary_action_label: __('Create Payment Entry'),
+			primary_action: function(values) {
+				if (!values.cash_bank_account) {
+					frappe.msgprint(__('Please select a Cash / Bank Account.'));
+					return;
+				}
 				var selected = [];
 				dialog.$wrapper.find('.payment-row-check:checked').each(function() {
 					selected.push($(this).attr('data-row-name'));
 				});
 				if (!selected.length) {
-					frappe.msgprint(__("Please select at least one row."));
+					frappe.msgprint(__('Please select at least one row.'));
 					return;
 				}
+				dialog.hide();
 				frappe.call({
-					method: "vsd_fleet_ms.vsd_fleet_ms.doctype.requested_payment.requested_payment.create_payment_for_rows",
+					method: 'vsd_fleet_ms.vsd_fleet_ms.doctype.requested_payment.requested_payment.create_payment_for_rows',
 					args: {
 						parent_docname: frm.doc.name,
-						selected_rows: selected
+						selected_rows: JSON.stringify(selected),
+						cash_bank_account: values.cash_bank_account,
+						mode_of_payment: values.mode_of_payment || 'Cash',
 					},
 					freeze: true,
-					freeze_message: __("Creating payment entries..."),
+					freeze_message: __('Creating payment entries...'),
 					callback: function(r) {
-						dialog.hide();
-						frm.reload_doc();
-						if (r.message && r.message.created > 0) {
-							frappe.msgprint(__("{0} payment(s) created successfully.", [r.message.created]));
+						if (r.message) {
+							var msg = r.message;
+							if (msg.created > 0) {
+								var names = msg.payment_entries.join(', ');
+								frappe.msgprint(
+									__('<b>{0}</b> Payment Entry/Entries created: {1}', [msg.created, names])
+								);
+							}
+							if (msg.errors && msg.errors.length) {
+								frappe.msgprint(
+									__('Errors:<br>') + msg.errors.join('<br>'),
+									__('Warning')
+								);
+							}
+							frm.reload_doc();
 						}
-					}
+					},
 				});
-			}
+			},
 		});
 
-		// Select all checkbox handler
-		dialog.$wrapper.find('.select-all').on('change', function() {
+		// Select-all handler (runs after dialog renders)
+		dialog.onhide = function() {};
+		dialog.$wrapper.on('change', '.select-all', function() {
 			var checked = $(this).prop('checked');
 			dialog.$wrapper.find('.payment-row-check').prop('checked', checked);
 		});
 
 		dialog.show();
+	},
+
+	view_ledger: function(frm) {
+		// Show all GL entries linked to this Requested Payment
+		// (both from accounts_approval step and from Payment Entry step)
+		frappe.call({
+			method: 'frappe.client.get_list',
+			args: {
+				doctype: 'GL Entry',
+				filters: [
+					['against_voucher_type', '=', 'Requested Payment'],
+					['against_voucher', '=', frm.doc.name],
+				],
+				fields: ['voucher_type', 'voucher_no', 'account', 'debit', 'credit',
+					'party_type', 'party', 'posting_date'],
+				order_by: 'posting_date asc',
+				limit_page_length: 100,
+			},
+			callback: function(r) {
+				if (!r.message || !r.message.length) {
+					// Fallback: also query by voucher_no
+					frappe.call({
+						method: 'frappe.client.get_list',
+						args: {
+							doctype: 'GL Entry',
+							filters: [
+								['voucher_type', '=', 'Requested Payment'],
+								['voucher_no', '=', frm.doc.name],
+							],
+							fields: ['voucher_type', 'voucher_no', 'account', 'debit', 'credit',
+								'party_type', 'party', 'posting_date'],
+							order_by: 'posting_date asc',
+							limit_page_length: 100,
+						},
+						callback: function(r2) {
+							frm.events._show_ledger_dialog(frm, r2.message || []);
+						},
+					});
+					return;
+				}
+				frm.events._show_ledger_dialog(frm, r.message);
+			},
+		});
+	},
+
+	_show_ledger_dialog: function(frm, entries) {
+		if (!entries.length) {
+			frappe.msgprint(__('No ledger entries found for this payment request.'));
+			return;
+		}
+
+		var html = '<table class="table table-bordered table-condensed" style="font-size:12px">';
+		html += '<thead><tr><th>Date</th><th>Voucher</th><th>Account</th><th>Party</th>'
+			+ '<th class="text-right">Debit</th><th class="text-right">Credit</th></tr></thead><tbody>';
+
+		entries.forEach(function(e) {
+			html += '<tr>';
+			html += '<td>' + (e.posting_date || '') + '</td>';
+			html += '<td><a href="/app/' + frappe.router.slug(e.voucher_type) + '/' + e.voucher_no + '" target="_blank">'
+				+ e.voucher_no + '</a></td>';
+			html += '<td>' + (e.account || '') + '</td>';
+			html += '<td>' + (e.party || '') + '</td>';
+			html += '<td class="text-right">' + (e.debit > 0 ? flt(e.debit).toLocaleString() : '') + '</td>';
+			html += '<td class="text-right">' + (e.credit > 0 ? flt(e.credit).toLocaleString() : '') + '</td>';
+			html += '</tr>';
+		});
+		html += '</tbody></table>';
+
+		var d = new frappe.ui.Dialog({
+			title: __('Ledger Entries — {0}', [frm.doc.name]),
+			fields: [{ fieldtype: 'HTML', fieldname: 'ledger_html', options: html }],
+			size: 'extra-large',
+		});
+		d.show();
 	},
 	
 	validate_payment: function(frm){
@@ -412,23 +550,24 @@ cur_frm.cscript.approve_request = function(frm){
 	if(selected['requested_funds'])
 	{
 		frappe.confirm(
-			'Confirm: Approve selected requests?',
+			'Confirm: Approve selected requests? GL entries will be posted automatically if accounts are configured.',
 			function(){
-				$.each(selected['requested_funds'], function(index, value){
-					frappe.call({
+				var calls = selected['requested_funds'].map(function(value){
+					return frappe.call({
 						method: "vsd_fleet_ms.vsd_fleet_ms.doctype.requested_payment.requested_payment.approve_request",
 						freeze: true,
 						args: {
 							request_doctype: "Requested Fund Details",
 							request_docname: value,
+							parent_doctype: cur_frm.doctype,
+							parent_docname: cur_frm.docname,
 							user: frappe.user.full_name()
-						},
-						callback: function(data){
-							//alert(JSON.stringify(data));
 						}
 					});
 				});
-				location.reload();
+				Promise.all(calls).then(function(){
+					cur_frm.reload_doc();
+				});
 			},
 			function(){
 				//Do nothing
@@ -481,42 +620,49 @@ cur_frm.cscript.reject_request = function(frm){
 //For accounts approval
 cur_frm.cscript.accounts_approval = function(frm){
 	var selected = cur_frm.get_selected();
-	if(selected['accounts_approval'])
-	{
-		frappe.confirm(
-			'Confirm: Approve selected requests?',
-			function(){
-				$.each(selected['accounts_approval'], function(index, value){
-					frappe.call({
-						method: "vsd_fleet_ms.vsd_fleet_ms.doctype.requested_payment.requested_payment.accounts_approval",
-						freeze: true,
-						args: {
-							request_doctype: "Requested Fund Accounts Table",
-							request_docname: value,
-							parent_doctype: cur_frm.doctype,
-							parent_docname: cur_frm.docname,
-							local: locals['Requested Fund Accounts Table'][value],
-							reference: locals['Requested Fund Accounts Table'][value].reference,
-							user: frappe.user.full_name()
-						},
-						callback: function(data){
-							console.log(JSON.stringify(data));
-						}
-					});
-				});
-				frappe.after_ajax(function(){
-					cur_frm.reload_doc();
-				})
-			},
-			function(){
-				//Do nothing
-			}
-		);
-	}
-	else
-	{
+	if(!selected['accounts_approval'] || !selected['accounts_approval'].length) {
 		show_alert("Error: Please select requests to process.");
+		return;
 	}
+
+	// Build Ledger Entry preview so approver knows exactly what will be posted
+	var rows = selected['accounts_approval'].map(function(name) {
+		return locals['Requested Fund Accounts Table'][name];
+	}).filter(Boolean);
+
+	var msg = '<b>' + rows.length + ' expense(s) will be approved:</b><br>';
+	msg += '<div style="margin:8px 0;padding:8px;background:#f8f8f8;border-radius:4px;font-size:12px">';
+	rows.forEach(function(row) {
+		var exp_acct = row.expense_account || '<span style="color:red">Expense Account NOT SET</span>';
+		var pay_acct = row.payable_account || '<span style="color:red">Payable Account NOT SET</span>';
+		var amt = (row.request_amount || 0).toLocaleString() + ' ' + (row.request_currency || '');
+		msg += '<div style="margin-bottom:6px">';
+		msg += '<b>' + (row.expense_type || 'Expense') + '</b> — ' + amt + '<br>';
+		msg += '&nbsp;&nbsp;Ledger Entry: <b>' + exp_acct + '</b> Dr &nbsp;/&nbsp; <b>' + pay_acct + '</b> Cr';
+		msg += '</div>';
+	});
+	msg += '</div>Confirm accounts approval? A Ledger Entry will be created for each row.';
+
+	frappe.confirm(msg, function(){
+		var calls = selected['accounts_approval'].map(function(value){
+			return frappe.call({
+				method: "vsd_fleet_ms.vsd_fleet_ms.doctype.requested_payment.requested_payment.accounts_approval",
+				freeze: true,
+				args: {
+					request_doctype: "Requested Fund Accounts Table",
+					request_docname: value,
+					parent_doctype: cur_frm.doctype,
+					parent_docname: cur_frm.docname,
+					local: locals['Requested Fund Accounts Table'][value],
+					reference: locals['Requested Fund Accounts Table'][value].reference,
+					user: frappe.user.full_name()
+				}
+			});
+		});
+		Promise.all(calls).then(function(){
+			cur_frm.reload_doc();
+		});
+	});
 }
 
 

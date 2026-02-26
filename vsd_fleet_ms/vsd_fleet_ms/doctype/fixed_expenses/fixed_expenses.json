@@ -16,7 +16,8 @@
   "accounts_details_section",
   "expense_account",
   "column_break_usis6",
-  "cash_bank_account"
+  "cash_bank_account",
+  "cash_on_hand_account"
  ],
  "fields": [
   {
@@ -72,14 +73,22 @@
    "fieldname": "cash_bank_account",
    "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Cash / Bank Account",
+   "label": "Payable Account",
    "options": "Account",
    "reqd": 1
+  },
+  {
+   "fieldname": "cash_on_hand_account",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Cash on Hand Account",
+   "options": "Account",
+   "description": "Default cash/petty-cash account to disburse from when paying this expense type"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-02-17 13:00:00.000000",
+ "modified": "2026-02-22 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "VSD Fleet MS",
  "name": "Fixed Expenses",

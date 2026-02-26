@@ -212,29 +212,41 @@ class Trips(Document):
             if row.status not in ["Rejected", "Approved"]:
                 frappe.throw("<b>All fuel requests must be either approved or rejected before submitting the trip</b>")
 
-        if self.fuel_source_type == "Cash Purchase":
-            for row in self.fuel_request_history:
-                if row.status == "Approved" and not row.get("ledger_entry"):
-                    frappe.throw("<b>All approved fuel requests must have a Payment Request before submitting the trip</b>")
+        # Payment is handled via Requested Payment / Payment Entry after submission
+        # so we only require Approved/Rejected status, not a ledger_entry link
 
         for row in self.requested_fund_accounts_table:
-            if row.request_status not in ["Rejected", "Approved"]:
+            if row.request_status not in ["Rejected", "Approved", "Accounts Approved"]:
                 frappe.throw("<b>All fund requests must be either approved or rejected before submitting the trip</b>")
 
 
 @frappe.whitelist()
 def start_trip(docname):
-    """Set trip status to In Transit"""
+    """Set trip status to In Transit, mark truck On Trip and driver in_trip"""
     trip = frappe.get_doc("Trips", docname)
     if trip.trip_status != "Pending":
         frappe.throw(_("Trip can only be started when status is Pending"))
+
     trip.db_set("trip_status", "In Transit")
+
+    # Mark truck as On Trip so it is excluded from Manifest selection
+    if trip.transporter_type == "In House" and trip.truck_number:
+        frappe.db.set_value("Truck", trip.truck_number, {
+            "status": "On Trip",
+            "trans_ms_current_trip": trip.name,
+        })
+
+    # Mark driver as on trip so they are excluded from Manifest selection
+    if trip.assigned_driver:
+        frappe.db.set_value("Driver", trip.assigned_driver, "in_trip", 1)
+
+    frappe.db.commit()
     return "success"
 
 
 @frappe.whitelist()
 def complete_trip(docname):
-    """Set trip status to Completed, release truck"""
+    """Set trip status to Completed, release truck and driver"""
     trip = frappe.get_doc("Trips", docname)
     if trip.trip_status not in ("Pending", "In Transit"):
         frappe.throw(_("Trip can only be completed when status is Pending or In Transit"))
@@ -243,12 +255,18 @@ def complete_trip(docname):
     trip.db_set("trip_completed", 1)
     trip.db_set("trip_completed_date", nowdate())
 
+    # Release truck back to Idle
     if trip.transporter_type == "In House" and trip.truck_number:
         frappe.db.set_value("Truck", trip.truck_number, {
+            "status": "Idle",
             "trans_ms_current_trip": "",
-            "status": "Idle"
         })
 
+    # Release driver
+    if trip.assigned_driver:
+        frappe.db.set_value("Driver", trip.assigned_driver, "in_trip", 0)
+
+    frappe.db.commit()
     return "success"
 
 
@@ -286,52 +304,88 @@ def create_vehicle_trip_from_manifest(args_array):
     return vehicle_trip.as_dict()
 
 
-@frappe.whitelist()
-def create_trip_expense_ledger_entry(doc, row):
-    doc = frappe.get_doc(json.loads(doc))
-    row = frappe._dict(json.loads(row))
+def _make_expense_ledger_entry(row_doc, approved_by=None):
+    """Create and submit a Ledger Entry for an approved Trip expense row.
 
-    if row.ledger_entry:
-        return frappe.get_doc("Ledger Entry", row.ledger_entry)
+    Updates row.ledger_entry, row.request_status → "Accounts Approved".
+    Returns the submitted Ledger Entry document.
+    Can be called from accounts_approval, approve_request, or the JS button.
+    """
+    if row_doc.ledger_entry:
+        return frappe.get_doc("Ledger Entry", row_doc.ledger_entry)
 
-    if row.request_status != "Approved":
-        frappe.throw("Trip Expense Request is not Approved")
+    if not row_doc.expense_account:
+        frappe.throw(_("Expense Account is required on expense row {0}.").format(row_doc.name))
+    if not row_doc.payable_account:
+        frappe.throw(_("Payable Account is required on expense row {0}.").format(row_doc.name))
 
-    amount = flt(row.request_amount)
+    amount = flt(row_doc.request_amount)
     if amount <= 0:
-        frappe.throw("Request Amount must be greater than zero.")
+        frappe.throw(_("Amount must be greater than zero for expense row {0}.").format(row_doc.name))
 
-    ledger_doc = frappe.get_doc(
-        dict(
-            doctype="Ledger Entry",
-            posting_date=row.requested_date or doc.date or nowdate(),
-            entry_type="Expense",
-            source_type="Trip Expense",
-            account=row.expense_account,
-            party_type=row.party_type,
-            party=row.party,
-            currency=row.request_currency
-            or frappe.db.get_value("Currency", {"enabled": 1}, "name")
-            or "USD",
-            amount=amount,
-            reference_doctype="Trips",
-            reference_name=doc.name,
-            reference_trip=doc.name,
-            reference_trip_expense=row.name,
-            description=row.request_description
-            or row.expense_type
-            or f"Trip Expense for {doc.name}",
-            remarks=row.comment or f"Trip Expense linked to {doc.name}",
-        )
+    currency = (
+        row_doc.request_currency
+        or frappe.db.get_value("Currency", {"enabled": 1}, "name")
+        or "USD"
     )
+    trip_date = frappe.db.get_value("Trips", row_doc.parent, "date")
+    posting_date = row_doc.posting_date or row_doc.requested_date or trip_date or nowdate()
+
+    ledger_doc = frappe.new_doc("Ledger Entry")
+    ledger_doc.update({
+        "posting_date": posting_date,
+        "entry_type": "Expense",
+        "source_type": "Trip Expense",
+        "account": row_doc.expense_account,
+        "contra_account": row_doc.payable_account,
+        "party_type": row_doc.party_type or "",
+        "party": row_doc.party or "",
+        "currency": currency,
+        "amount": amount,
+        "reference_doctype": "Trips",
+        "reference_name": row_doc.parent,
+        "reference_trip": row_doc.parent,
+        "reference_trip_expense": row_doc.name,
+        "remarks": (
+            row_doc.request_description
+            or row_doc.expense_type
+            or "Trip Expense for {0}".format(row_doc.parent)
+        ),
+    })
     ledger_doc.flags.ignore_permissions = True
     ledger_doc.insert(ignore_permissions=True)
     ledger_doc.submit()
 
-    frappe.set_value(row.doctype, row.name, "ledger_entry", ledger_doc.name)
-    ledger_url = frappe.utils.get_url_to_form(ledger_doc.doctype, ledger_doc.name)
+    update_fields = {
+        "ledger_entry": ledger_doc.name,
+        "request_status": "Accounts Approved",
+        "request_hidden_status": "1",
+        "accounts_approved_on": now(),
+    }
+    if approved_by:
+        update_fields["accounts_approved_by"] = approved_by
+    frappe.db.set_value("Requested Fund Details", row_doc.name, update_fields)
+
+    return ledger_doc
+
+
+@frappe.whitelist()
+def create_trip_expense_ledger_entry(doc, row):
+    """Called from the 'Create Ledger Entry' button on the Trip expense child row."""
+    row_dict = frappe._dict(json.loads(row))
+    row_doc = frappe.get_doc("Requested Fund Details", row_dict.name)
+
+    if row_doc.ledger_entry:
+        frappe.msgprint(_("Ledger Entry already exists: {0}").format(row_doc.ledger_entry))
+        return frappe.get_doc("Ledger Entry", row_doc.ledger_entry)
+
+    if row_doc.request_status not in ("Approved", "Accounts Approved"):
+        frappe.throw(_("Trip expense must be Approved before creating a ledger entry."))
+
+    ledger_doc = _make_expense_ledger_entry(row_doc)
+    ledger_url = frappe.utils.get_url_to_form("Ledger Entry", ledger_doc.name)
     frappe.msgprint(
-        _("Ledger Entry Created <a href='{0}'>{1}</a>").format(ledger_url, ledger_doc.name)
+        _("Ledger Entry Created: <a href='{0}'>{1}</a>").format(ledger_url, ledger_doc.name)
     )
     return ledger_doc
 
@@ -538,6 +592,31 @@ def create_purchase_order(request_doc, item):
 
 
 @frappe.whitelist()
+def get_fuel_approval_preview(trip_name):
+    """Return trip-level fuel settings so the JS dialog can tell the user
+    what will happen when they approve a fuel row (stock deduction vs expense booking)."""
+    trip = frappe.get_doc("Trips", trip_name)
+    result = frappe._dict(
+        fuel_source_type=trip.fuel_source_type or "",
+        warehouse=None,
+        fuel_item=None,
+        expense_account=None,
+        cash_account=None,
+    )
+
+    if trip.fuel_source_type == "From Inventory":
+        result.fuel_item = frappe.get_value("Transport Settings", None, "fuel_item")
+        if trip.truck_number:
+            result.warehouse = frappe.get_value("Truck", trip.truck_number, "trans_ms_fuel_warehouse")
+    else:
+        settings = frappe.get_single("Transport Settings")
+        result.expense_account = settings.fuel_expense_account
+        result.cash_account = settings.fuel_cash_account
+
+    return result
+
+
+@frappe.whitelist()
 def auto_process_fuel_approval(fuel_row_name):
     """Auto-process an approved fuel request row.
     Called from fuel_requests.py after approval.
@@ -553,12 +632,20 @@ def auto_process_fuel_approval(fuel_row_name):
             try:
                 fuel_item = frappe.get_value("Transport Settings", None, "fuel_item")
                 if not fuel_item:
-                    frappe.log_error("Fuel item not set in Transport Settings", "Auto Fuel Process")
+                    frappe.msgprint(
+                        _("Fuel Item not set in Transport Settings. Stock entry not created for trip {0}.").format(trip.name),
+                        indicator="orange", title=_("Transport Settings Missing")
+                    )
                     return
 
                 warehouse = frappe.get_value("Truck", trip.truck_number, "trans_ms_fuel_warehouse")
                 if not warehouse:
-                    frappe.log_error(f"Fuel warehouse not set for truck {trip.truck_number}", "Auto Fuel Process")
+                    frappe.msgprint(
+                        _("Fuel warehouse not set for truck {0}. Stock entry not created for trip {1}.").format(
+                            trip.truck_number, trip.name
+                        ),
+                        indicator="orange", title=_("Truck Configuration Missing")
+                    )
                     return
 
                 item_rate = flt(frappe.get_value("Item", fuel_item, "standard_rate") or 0)
@@ -599,10 +686,18 @@ def auto_process_fuel_approval(fuel_row_name):
                 expense_account = settings.fuel_expense_account
                 cash_account = settings.fuel_cash_account
                 if not expense_account:
-                    frappe.log_error("Fuel Expense Account not set in Transport Settings", "Auto Fuel Process")
+                    frappe.msgprint(
+                        _("Fuel Expense Account not set in Transport Settings. Fuel expense row not created for trip {0}.").format(trip.name),
+                        indicator="orange", title=_("Transport Settings Missing")
+                    )
                     return
                 if not cash_account:
-                    frappe.log_error("Fuel Cash/Bank Account not set in Transport Settings", "Auto Fuel Process")
+                    frappe.msgprint(
+                        _("Fuel Cash/Bank Account not set in Transport Settings. "
+                          "Please configure it under Transport Settings → Fuel Cash Account. "
+                          "Fuel expense row not created for trip {0}.").format(trip.name),
+                        indicator="orange", title=_("Transport Settings Missing")
+                    )
                     return
 
                 amount = flt(fuel_row.total_cost) or (flt(fuel_row.quantity) * flt(fuel_row.cost_per_litre))
@@ -650,12 +745,39 @@ def auto_process_fuel_approval(fuel_row_name):
 
 @frappe.whitelist()
 def create_breakdown(docname):
+    """Mark trip as Breakdown, update Truck/Driver, create Trip Breakdown doc"""
     trip = frappe.get_doc("Trips", docname)
-    trip.trip_status = "Breakdown"
-    trip.status = "Not Re-Assigned"
-    trip.breakdown_date = now()
-    trip.save()
-    return "successful"
+
+    if trip.trip_status not in ("Pending", "In Transit"):
+        frappe.throw(_("Breakdown can only be recorded for Pending or In Transit trips"))
+
+    # Use db_set to avoid triggering validation hooks
+    trip.db_set("trip_status", "Breakdown")
+    trip.db_set("status", "Not Re-Assigned")
+    trip.db_set("breakdown_date", now())
+
+    # Move truck to Under Maintenance and clear current trip
+    if trip.transporter_type == "In House" and trip.truck_number:
+        frappe.db.set_value("Truck", trip.truck_number, {
+            "status": "Under Maintenance",
+            "trans_ms_current_trip": "",
+        })
+
+    # Release driver so they can be reassigned
+    if trip.assigned_driver:
+        frappe.db.set_value("Driver", trip.assigned_driver, "in_trip", 0)
+
+    # Create the Trip Breakdown document
+    breakdown = frappe.new_doc("Trip Breakdown")
+    breakdown.trip = docname
+    breakdown.date = nowdate()
+    breakdown.status = "Not Re-Assigned"
+    if trip.location:
+        breakdown.breakdown_location = trip.location
+    breakdown.insert(ignore_permissions=True)
+
+    frappe.db.commit()
+    return breakdown.name
 
 
 @frappe.whitelist()
@@ -692,3 +814,178 @@ def create_resumption_trip(docname):
     old_trip.status = "Re-Assigned"
     old_trip.save()
     return new_trip.as_dict()
+
+
+# ─── Trip Expense Quick-Action API ────────────────────────────────────────────
+
+@frappe.whitelist()
+def get_trip_expense_rows(trip_name, status_filter=None):
+    """Return Requested Fund Details rows for a trip, optionally filtered by status."""
+    filters = {
+        "parent": trip_name,
+        "parenttype": "Trips",
+        "parentfield": "requested_fund_accounts_table",
+    }
+    if status_filter:
+        if isinstance(status_filter, str):
+            try:
+                status_filter = frappe.parse_json(status_filter)
+            except Exception:
+                status_filter = [status_filter]
+        filters["request_status"] = ["in", status_filter]
+
+    rows = frappe.get_all(
+        "Requested Fund Details",
+        filters=filters,
+        fields=[
+            "name", "expense_type", "request_amount", "request_currency",
+            "request_status", "party_type", "party", "expense_account",
+            "payable_account", "requested_date", "journal_entry",
+        ],
+        order_by="idx asc",
+    )
+    return rows
+
+
+@frappe.whitelist()
+def get_trip_fuel_rows(trip_name, status_filter=None):
+    """Return Fuel Requests Table rows for a trip, optionally filtered by status."""
+    filters = {
+        "parent": trip_name,
+        "parenttype": "Trips",
+        "parentfield": "fuel_request_history",
+    }
+    if status_filter:
+        if isinstance(status_filter, str):
+            try:
+                status_filter = frappe.parse_json(status_filter)
+            except Exception:
+                status_filter = [status_filter]
+        filters["status"] = ["in", status_filter]
+
+    rows = frappe.get_all(
+        "Fuel Requests Table",
+        filters=filters,
+        fields=[
+            "name", "item_code", "item_name", "quantity", "cost_per_litre",
+            "total_cost", "currency", "status", "supplier",
+        ],
+        order_by="idx asc",
+    )
+    return rows
+
+
+@frappe.whitelist()
+def trip_approve_fuel_rows(trip_name, row_names):
+    """Directly approve selected Cash Purchase fuel rows from the Trip form.
+    Sets status to Approved and calls auto_process_fuel_approval for each row.
+    """
+    row_names = frappe.parse_json(row_names) if isinstance(row_names, str) else row_names
+    if not row_names:
+        frappe.throw("No rows selected")
+
+    approved = []
+    errors = []
+
+    for row_name in row_names:
+        try:
+            row = frappe.get_doc("Fuel Requests Table", row_name)
+            if row.parent != trip_name:
+                frappe.throw(f"Row {row_name} does not belong to trip {trip_name}")
+            if row.status in ("Approved", "Rejected"):
+                continue
+
+            frappe.db.set_value("Fuel Requests Table", row_name, "status", "Approved")
+            auto_process_fuel_approval(row_name)
+            approved.append(row_name)
+        except Exception as e:
+            errors.append(f"{row_name}: {str(e)}")
+            frappe.log_error(frappe.get_traceback(), f"trip_approve_fuel_rows failed: {row_name}")
+
+    return {"approved": approved, "errors": errors}
+
+
+@frappe.whitelist()
+def trip_approve_expense_rows(trip_name, row_names):
+    """Directly approve expense rows — collapses manager + accounts approval.
+    Posts Expense Dr / Payable Cr GL entries with voucher_type="Trips".
+    """
+    from vsd_fleet_ms.vsd_fleet_ms.doctype.requested_payment.requested_payment import (
+        get_gl_entries, make_gl_entries,
+    )
+
+    row_names = frappe.parse_json(row_names) if isinstance(row_names, str) else row_names
+    if not row_names:
+        frappe.throw("No rows selected")
+
+    approved = []
+    errors = []
+
+    for row_name in row_names:
+        try:
+            row = frappe.get_doc("Requested Fund Details", row_name)
+            if row.parent != trip_name:
+                frappe.throw(f"Row {row_name} does not belong to trip {trip_name}")
+            if row.request_status in ("Accounts Approved", "Rejected"):
+                continue
+            if not row.expense_account:
+                errors.append(f"{row.expense_type or row_name}: Expense Account not set")
+                continue
+            if not row.payable_account:
+                errors.append(f"{row.expense_type or row_name}: Payable Account not set")
+                continue
+
+            # Ensure conversion_rate is positive to avoid division-by-zero in GL
+            if not flt(row.conversion_rate):
+                row.conversion_rate = 1.0
+
+            gl_entries = get_gl_entries(row, "Trips", trip_name)
+            make_gl_entries(gl_entries)
+
+            frappe.db.set_value("Requested Fund Details", row_name, {
+                "request_status":        "Accounts Approved",
+                "approved_by":           frappe.session.user,
+                "accounts_approved_by":  frappe.session.user,
+                "approved_date":         nowdate(),
+                "request_hidden_status": "1",
+            })
+            approved.append(row_name)
+        except Exception as e:
+            errors.append(f"{row_name}: {str(e)}")
+            frappe.log_error(frappe.get_traceback(), f"trip_approve_expense_rows failed: {row_name}")
+
+    return {"approved": approved, "errors": errors}
+
+
+@frappe.whitelist()
+def trip_make_payment(trip_name, row_names, cash_bank_account, mode_of_payment="Cash"):
+    """Create Payment Entry for Accounts Approved expense rows directly from the Trip form.
+    Ensures a Requested Payment doc exists for the trip, then delegates to
+    create_fund_payment_entry which handles the Payment Entry creation.
+    """
+    from vsd_fleet_ms.vsd_fleet_ms.doctype.payment_entry.payment_entry import (
+        create_fund_payment_entry,
+    )
+
+    row_names = frappe.parse_json(row_names) if isinstance(row_names, str) else row_names
+
+    trip = frappe.get_doc("Trips", trip_name)
+
+    # Ensure a Requested Payment doc exists (creates one if missing)
+    request_funds(
+        reference_doctype="Trips",
+        reference_docname=trip_name,
+        truck=trip.truck_number,
+        truck_driver=trip.assigned_driver,
+        trip_route=trip.route,
+    )
+
+    rp_name = frappe.db.get_value(
+        "Requested Payment",
+        {"reference_doctype": "Trips", "reference_docname": trip_name},
+        "name",
+    )
+    if not rp_name:
+        frappe.throw("Could not find or create a Requested Payment for this trip")
+
+    return create_fund_payment_entry(rp_name, row_names, cash_bank_account, mode_of_payment)

@@ -1,0 +1,48 @@
+{
+ "add_total_row": 0,
+ "columns": [],
+ "disabled": 0,
+ "doctype": "Report",
+ "filters": [
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "truck",
+   "fieldtype": "Link",
+   "label": "Truck",
+   "options": "Truck"
+  },
+  {
+   "fieldname": "transporter_type",
+   "fieldtype": "Select",
+   "label": "Transporter Type",
+   "options": "\nIn House\nSub-Contractor"
+  },
+  {
+   "fieldname": "trip_status",
+   "fieldtype": "Select",
+   "label": "Trip Status",
+   "options": "\nPending\nIn Transit\nCompleted\nBreakdown"
+  }
+ ],
+ "is_standard": "Yes",
+ "module": "VSD Fleet MS",
+ "name": "Vehicle Profitability",
+ "ref_doctype": "Trips",
+ "report_name": "Vehicle Profitability",
+ "report_type": "Script Report",
+ "roles": [
+  {"role": "System Manager"},
+  {"role": "All"}
+ ]
+}

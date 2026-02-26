@@ -84,43 +84,50 @@ frappe.ui.form.on('Fuel Requests Table', {
 //For approve button
 cur_frm.cscript.approve_request = function (frm) {
     var selected = cur_frm.get_selected();
-    if (selected['requested_fuel']) {
-        frappe.confirm(
-            'Confirm: Approve selected requests?',
-            function () {
-                $.each(selected['requested_fuel'], function (index, value) {
-                    frappe.call({
-                        method: "vsd_fleet_ms.vsd_fleet_ms.doctype.fuel_requests.fuel_requests.approve_request",
-                        freeze: true,
-                        args: {
-                            request_doctype: "Fuel Requests Table",
-                            request_docname: value,
-                            user: frappe.user.full_name()
-                        },
-                        callback: function (data) {
-                            //alert(JSON.stringify(data));
-                        }
-                    });
-                });
-                frappe.call({
-                    method: "vsd_fleet_ms.vsd_fleet_ms.doctype.fuel_requests.fuel_requests.set_status",
-                    freeze: true,
-                    args: {
-                        request_doctype: "Fuel Requests Table",
-                    },
-                    callback: function (data) {
-                        //alert(JSON.stringify(data));
-                    }
-                });
-                location.reload();
-            },
-            function () {
-                //Do nothing
-            }
-        );
-    } else {
+    if (!selected['requested_fuel'] || !selected['requested_fuel'].length) {
         show_alert("Error: Please select requests to process.");
+        return;
     }
+
+    // Build a preview message showing what will happen per row
+    var rows = cur_frm.doc.requested_fuel.filter(function(r) {
+        return selected['requested_fuel'].includes(r.name);
+    });
+
+    var from_stock = rows.filter(function(r) {
+        return !r.disbursement_type || r.disbursement_type === "From Inventory";
+    });
+    var cash_buy = rows.filter(function(r) {
+        return r.disbursement_type === "Cash" || r.disbursement_type === "Cash Purchase" || r.disbursement_type === "From Supplier";
+    });
+
+    var msg = '<b>' + rows.length + ' fuel request(s) selected:</b><br><br>';
+    if (from_stock.length) {
+        msg += '<span style="color:#2490ef">&#9632; ' + from_stock.length + ' row(s) — From Inventory</span><br>';
+        msg += '&nbsp;&nbsp;→ Stock will be <b>deducted from warehouse</b><br><br>';
+    }
+    if (cash_buy.length) {
+        msg += '<span style="color:#e67e22">&#9632; ' + cash_buy.length + ' row(s) — Cash Purchase</span><br>';
+        msg += '&nbsp;&nbsp;→ Expense will be <b>booked to accounts</b> (Fuel Expense Dr / Payable Cr)<br><br>';
+    }
+    msg += 'Confirm approval?';
+
+    frappe.confirm(msg, function () {
+        var calls = selected['requested_fuel'].map(function (value) {
+            return frappe.call({
+                method: "vsd_fleet_ms.vsd_fleet_ms.doctype.fuel_requests.fuel_requests.approve_request",
+                freeze: true,
+                args: {
+                    request_doctype: "Fuel Requests Table",
+                    request_docname: value,
+                    user: frappe.user.full_name()
+                }
+            });
+        });
+        Promise.all(calls).then(function () {
+            cur_frm.reload_doc();
+        });
+    });
 };
 
 //For reject button
@@ -131,31 +138,20 @@ cur_frm.cscript.reject_request = function (frm) {
         frappe.confirm(
             'Confirm: Reject selected requests?',
             function () {
-                $.each(selected['requested_fuel'], function (index, value) {
-                    frappe.call({
+                var calls = selected['requested_fuel'].map(function (value) {
+                    return frappe.call({
                         method: "vsd_fleet_ms.vsd_fleet_ms.doctype.fuel_requests.fuel_requests.reject_request",
                         freeze: true,
                         args: {
                             request_doctype: "Fuel Requests Table",
                             request_docname: value,
                             user: frappe.user.full_name()
-                        },
-                        callback: function (data) {
-                            //alert(JSON.stringify(data));
                         }
                     });
                 });
-                frappe.call({
-                    method: "vsd_fleet_ms.vsd_fleet_ms.doctype.fuel_requests.fuel_requests.set_status",
-                    freeze: true,
-                    args: {
-                        request_doctype: "Fuel Requests Table",
-                    },
-                    callback: function (data) {
-                        //alert(JSON.stringify(data));
-                    }
+                Promise.all(calls).then(function () {
+                    cur_frm.reload_doc();
                 });
-                location.reload();
             },
             function () {
                 //Do nothing

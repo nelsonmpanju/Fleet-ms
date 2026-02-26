@@ -31,7 +31,10 @@ app_include_css = "/assets/vsd_fleet_ms/css/fleet_dashboard.css"
 # include js in doctype views
 # doctype_js = {"doctype" : "public/js/doctype.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
-doctype_tree_js = {"Warehouse": "public/js/warehouse_tree.js"}
+doctype_tree_js = {
+	"Warehouse": "public/js/warehouse_tree.js",
+	"Account": "vsd_fleet_ms/doctype/account/account_tree.js",
+}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
 # Home Pages
@@ -64,7 +67,7 @@ doctype_tree_js = {"Warehouse": "public/js/warehouse_tree.js"}
 # ------------
 
 # before_install = "vsd_fleet_ms.install.before_install"
-# after_install = "vsd_fleet_ms.install.after_install"
+after_install = "vsd_fleet_ms.install.after_install"
 
 # Uninstallation
 # ------------

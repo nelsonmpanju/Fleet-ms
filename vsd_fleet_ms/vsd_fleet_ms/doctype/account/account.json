@@ -3,20 +3,42 @@
  "allow_import": 1,
  "allow_rename": 1,
  "autoname": "field:account_name",
+ "creation": "2026-02-17 00:56:38.169527",
+ "default_view": "Tree",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "account_number",
+  "cb_name",
   "account_name",
+  "sb_parent",
   "parent_account",
+  "cb_parent",
   "is_group",
+  "sb_type",
   "account_type",
+  "cb_type",
   "account_currency",
+  "sb_info",
+  "balance_type",
+  "description",
   "old_parent",
   "lft",
   "rgt"
  ],
  "fields": [
+  {
+   "fieldname": "account_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Account Number",
+   "translatable": 0
+  },
+  {
+   "fieldname": "cb_name",
+   "fieldtype": "Column Break"
+  },
   {
    "fieldname": "account_name",
    "fieldtype": "Data",
@@ -26,10 +48,19 @@
    "unique": 1
   },
   {
+   "fieldname": "sb_parent",
+   "fieldtype": "Section Break",
+   "label": "Hierarchy"
+  },
+  {
    "fieldname": "parent_account",
    "fieldtype": "Link",
    "label": "Parent Account",
    "options": "Account"
+  },
+  {
+   "fieldname": "cb_parent",
+   "fieldtype": "Column Break"
   },
   {
    "default": "0",
@@ -37,6 +68,11 @@
    "fieldtype": "Check",
    "in_list_view": 1,
    "label": "Is Group"
+  },
+  {
+   "fieldname": "sb_type",
+   "fieldtype": "Section Break",
+   "label": "Classification"
   },
   {
    "fieldname": "account_type",
@@ -47,10 +83,32 @@
    "reqd": 1
   },
   {
+   "fieldname": "cb_type",
+   "fieldtype": "Column Break"
+  },
+  {
    "fieldname": "account_currency",
    "fieldtype": "Link",
    "label": "Account Currency",
    "options": "Currency"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "sb_info",
+   "fieldtype": "Section Break",
+   "label": "Additional Information"
+  },
+  {
+   "fieldname": "balance_type",
+   "fieldtype": "Select",
+   "label": "Balance Type",
+   "options": "\nDebit\nCredit",
+   "read_only": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
   },
   {
    "fieldname": "old_parent",
@@ -72,11 +130,31 @@
   }
  ],
  "is_tree": 1,
+ "links": [],
+ "modified": "2026-02-21 00:00:00.000000",
+ "modified_by": "Administrator",
  "module": "VSD Fleet MS",
  "name": "Account",
  "nsm_parent_field": "parent_account",
- "permissions": [{"role":"System Manager","read":1,"write":1,"create":1,"delete":1,"report":1,"export":1,"print":1,"email":1,"share":1}],
- "sort_field": "modified",
- "sort_order": "DESC",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "account_number",
+ "sort_order": "ASC",
+ "states": [],
+ "title_field": "account_name",
  "track_changes": 1
 }

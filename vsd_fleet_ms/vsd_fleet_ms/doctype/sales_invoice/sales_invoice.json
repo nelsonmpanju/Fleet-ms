@@ -20,6 +20,7 @@
   "status",
   "payment_status",
   "income_account",
+  "receivable_account",
   "reference_trip",
   "route",
   "ledger_entry",
@@ -113,6 +114,13 @@
    "label": "Income Account",
    "options": "Account",
    "reqd": 1
+  },
+  {
+   "description": "Accounts Receivable (Debtors) account — auto-filled from Customer; used when posting GL entries",
+   "fieldname": "receivable_account",
+   "fieldtype": "Link",
+   "label": "Receivable Account",
+   "options": "Account"
   },
   {
    "fieldname": "reference_trip",

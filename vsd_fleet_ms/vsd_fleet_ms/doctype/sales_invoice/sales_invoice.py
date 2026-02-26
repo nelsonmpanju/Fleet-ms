@@ -8,6 +8,12 @@ from frappe.utils import flt, nowdate
 from vsd_fleet_ms.vsd_fleet_ms.doctype.account.account import ensure_posting_account
 
 
+def _get_sales_settings():
+    """Return (default_income_account, default_receivable_account) from Transport Settings."""
+    s = frappe.get_single("Transport Settings")
+    return s.default_income_account or None, s.default_receivable_account or None
+
+
 class SalesInvoice(Document):
     def autoname(self):
         self.name = make_autoname(self.naming_series or "SI-.#####")
@@ -35,6 +41,14 @@ class SalesInvoice(Document):
             self.currency = frappe.db.get_value("Currency", {"enabled": 1}, "name")
         if not self.conversion_rate:
             self.conversion_rate = 1
+        # Auto-fill receivable account from Customer, then Transport Settings
+        if not self.receivable_account and self.customer:
+            self.receivable_account = frappe.db.get_value(
+                "Customer", self.customer, "receivable_account"
+            ) or None
+        if not self.receivable_account:
+            _, default_recv = _get_sales_settings()
+            self.receivable_account = default_recv or None
 
     def set_income_accounts(self):
         default_income_account = self.income_account or self.get_default_income_account()
@@ -43,6 +57,7 @@ class SalesInvoice(Document):
             if not row.income_account and row.item_code:
                 row.income_account = frappe.db.get_value("Item", row.item_code, "income_account")
 
+            # Fall back to the invoice-level default so every row is always filled
             if not row.income_account:
                 row.income_account = default_income_account
 
@@ -59,14 +74,21 @@ class SalesInvoice(Document):
                 )
 
     def get_default_income_account(self):
-        default_income = frappe.db.get_value(
+        # 1. Check Transport Settings first — explicit system-wide default
+        default_income, _ = _get_sales_settings()
+        if default_income:
+            return default_income
+
+        # 2. Fall back to first non-group Income account in the CoA
+        fallback = frappe.db.get_value(
             "Account", {"account_type": "Income", "is_group": 0}, "name"
         )
-        if not default_income:
+        if not fallback:
             frappe.throw(
-                "No posting Income Account found. Please create a non-group Income account first."
+                "No Income Account found. Please set a Default Income Account in "
+                "Transport Settings or create a non-group Income account."
             )
-        return default_income
+        return fallback
 
     def validate_income_account(self):
         if not self.income_account:
@@ -92,6 +114,28 @@ class SalesInvoice(Document):
                 return
             self.db_set("ledger_entry", "", update_modified=False)
 
+        # Contra account = Accounts Receivable / Debtors (DR when invoice is raised)
+        # Priority: invoice field (set from customer) → Transport Settings → auto-detect
+        receivable_account = self.receivable_account
+        if not receivable_account:
+            _, receivable_account = _get_sales_settings()
+        if not receivable_account:
+            receivable_account = (
+                frappe.db.get_value(
+                    "Account",
+                    {"account_name": "Accounts Receivable", "is_group": 0},
+                    "name",
+                )
+                or frappe.db.get_value(
+                    "Account", {"account_type": "Receivable", "is_group": 0}, "name"
+                )
+            )
+        if not receivable_account:
+            frappe.throw(
+                "Receivable Account not found. Please set a Receivable Account on the "
+                "Customer record or set a Default Receivable Account in Transport Settings."
+            )
+
         ledger_doc = frappe.get_doc(
             {
                 "doctype": "Ledger Entry",
@@ -99,6 +143,8 @@ class SalesInvoice(Document):
                 "entry_type": "Income",
                 "source_type": "Sales Invoice",
                 "account": self.income_account,
+                # contra_account is the AR account — DR AR / CR Income
+                "contra_account": receivable_account,
                 "party_type": "Customer",
                 "party": self.customer,
                 "currency": self.currency,
@@ -159,13 +205,15 @@ class SalesInvoice(Document):
         self.tax_amount = line_tax_total + header_tax
         self.grand_total = self.taxable_amount + self.tax_amount
 
-        if flt(self.is_paid):
-            self.paid_amount = self.grand_total
+        grand_total = flt(self.grand_total)
+
+        if flt(self.is_paid) and grand_total > 0:
+            self.paid_amount = grand_total
             self.outstanding_amount = 0
             self.payment_status = "Paid"
         else:
-            self.outstanding_amount = self.grand_total - flt(self.paid_amount)
-            if self.outstanding_amount <= 0:
+            self.outstanding_amount = grand_total - flt(self.paid_amount)
+            if grand_total > 0 and self.outstanding_amount <= 0:
                 self.outstanding_amount = 0
                 self.payment_status = "Paid"
             elif flt(self.paid_amount) > 0:
@@ -179,3 +227,10 @@ class SalesInvoice(Document):
             self.status = "Submitted"
         elif self.docstatus == 2:
             self.status = "Cancelled"
+
+
+@frappe.whitelist()
+def get_sales_invoice_defaults():
+    """Return default income + receivable accounts for new Sales Invoices."""
+    income, receivable = _get_sales_settings()
+    return {"income_account": income, "receivable_account": receivable}

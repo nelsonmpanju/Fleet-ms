@@ -13,7 +13,12 @@
   "column_break_zuak",
   "fuel_item",
   "fuel_expense_account",
-  "fuel_cash_account"
+  "fuel_cash_account",
+  "section_break_sales",
+  "default_income_account",
+  "default_receivable_account",
+  "column_break_lutn",
+  "default_payable_account"
  ],
  "fields": [
   {
@@ -57,12 +62,42 @@
   {
    "fieldname": "column_break_zuak",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_sales",
+   "fieldtype": "Section Break",
+   "label": "Sales Defaults"
+  },
+  {
+   "description": "Default income account used for new Sales Invoices",
+   "fieldname": "default_income_account",
+   "fieldtype": "Link",
+   "label": "Default Income Account",
+   "options": "Account"
+  },
+  {
+   "description": "Accounts Receivable account \u2014 debited when a Sales Invoice is submitted",
+   "fieldname": "default_receivable_account",
+   "fieldtype": "Link",
+   "label": "Default Receivable Account",
+   "options": "Account"
+  },
+  {
+   "description": "Accounts Payable (Creditors) — credited when an expense is approved for a supplier",
+   "fieldname": "default_payable_account",
+   "fieldtype": "Link",
+   "label": "Default Payable Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "column_break_lutn",
+   "fieldtype": "Column Break"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-02-18 11:47:17.570727",
+ "modified": "2026-02-22 10:52:33.089734",
  "modified_by": "Administrator",
  "module": "VSD Fleet MS",
  "name": "Transport Settings",

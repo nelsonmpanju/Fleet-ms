@@ -21,6 +21,11 @@
   "section_reference",
   "reference_doctype",
   "reference_name",
+  "trip",
+  "section_accounts",
+  "payable_account",
+  "cash_bank_account",
+  "ledger_entry",
   "remarks"
  ],
  "fields": [
@@ -35,8 +40,13 @@
   {"fieldname":"paid_amount","fieldtype":"Currency","label":"Paid Amount","reqd":1},
   {"fieldname":"allocate_payment_amount","fieldtype":"Check","label":"Allocate Payment Amount","default":"1"},
   {"fieldname":"section_reference","fieldtype":"Section Break","label":"Reference"},
-  {"fieldname":"reference_doctype","fieldtype":"Select","label":"Reference DocType","options":"\nSales Invoice\nPurchase Invoice"},
+  {"fieldname":"reference_doctype","fieldtype":"Select","label":"Reference DocType","options":"\nSales Invoice\nPurchase Invoice\nRequested Payment"},
   {"fieldname":"reference_name","fieldtype":"Dynamic Link","label":"Reference Document","options":"reference_doctype"},
+  {"fieldname":"trip","fieldtype":"Link","label":"Vehicle Trip","options":"Trips"},
+  {"fieldname":"section_accounts","fieldtype":"Section Break","label":"Accounts"},
+  {"fieldname":"payable_account","fieldtype":"Link","label":"Payable Account","options":"Account","description":"Account to debit (clear the liability)"},
+  {"fieldname":"cash_bank_account","fieldtype":"Link","label":"Cash / Bank Account","options":"Account","description":"Account to credit (actual cash paid out)"},
+  {"fieldname":"ledger_entry","fieldtype":"Link","label":"Ledger Entry","options":"Ledger Entry","read_only":1,"description":"Auto-created GL ledger entry for this payment"},
   {"fieldname":"remarks","fieldtype":"Small Text","label":"Remarks"}
  ],
  "module": "VSD Fleet MS",

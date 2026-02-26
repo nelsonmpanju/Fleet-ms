@@ -14,6 +14,7 @@
   "phone",
   "email",
   "default_currency",
+  "receivable_account",
   "column_break_rrew",
   "disabled",
   "tin",
@@ -43,6 +44,13 @@
    "fieldtype": "Link",
    "label": "Default Currency",
    "options": "Currency"
+  },
+  {
+   "fieldname": "receivable_account",
+   "fieldtype": "Link",
+   "label": "Receivable Account (Debtors)",
+   "options": "Account",
+   "description": "Debtor account used when posting Sales Invoice GL entries for this customer"
   },
   {
    "fieldname": "phone",

@@ -1,0 +1,42 @@
+{
+ "add_total_row": 0,
+ "columns": [],
+ "disabled": 0,
+ "doctype": "Report",
+ "filters": [
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "account_type",
+   "fieldtype": "Select",
+   "label": "Account Type",
+   "options": "\nAsset\nLiability\nIncome\nExpense\nEquity"
+  },
+  {
+   "fieldname": "show_zero_balances",
+   "fieldtype": "Check",
+   "label": "Show Zero Balances",
+   "default": 0
+  }
+ ],
+ "is_standard": "Yes",
+ "module": "VSD Fleet MS",
+ "name": "Trial Balance",
+ "ref_doctype": "Account",
+ "report_name": "Trial Balance",
+ "report_type": "Script Report",
+ "roles": [
+  {"role": "System Manager"},
+  {"role": "All"}
+ ]
+}
