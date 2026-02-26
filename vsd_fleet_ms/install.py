@@ -6,6 +6,7 @@ from frappe import _
 
 
 def after_install():
+	create_default_currencies()
 	create_default_chart_of_accounts()
 	create_seed_accounts()
 	create_fixed_expenses()
@@ -26,6 +27,21 @@ def _make(doctype, data, unique_field="name"):
 	doc = frappe.get_doc({"doctype": doctype, **data})
 	doc.insert(ignore_permissions=True)
 	return doc
+
+
+# ── 0. Currencies ──────────────────────────────────────────────────────────
+
+def create_default_currencies():
+	"""Ensure TZS and USD currency records exist before creating accounts."""
+	currencies = [
+		{"currency_name": "TZS", "symbol": "TSh", "enabled": 1},
+		{"currency_name": "USD", "symbol": "$", "enabled": 1},
+	]
+	for curr in currencies:
+		if not frappe.db.exists("Currency", curr["currency_name"]):
+			doc = frappe.get_doc({"doctype": "Currency", **curr})
+			doc.insert(ignore_permissions=True)
+	frappe.db.commit()
 
 
 # ── 1. Chart of Accounts ────────────────────────────────────────────────────
@@ -234,7 +250,7 @@ def create_fixed_expenses():
 			"description":       "Driver Daily Allowance (TZS)",
 			"currency":          "TZS", "fixed_value": 50000,
 			"expense_account":   "Driver Daily Allowance",
-			"cash_bank_account": "Petty Cash",
+			"cash_bank_account": "Cash on Hand",
 		},
 		{
 			"description":       "Driver Subsistence (USD)",
@@ -246,43 +262,43 @@ def create_fixed_expenses():
 			"description":       "Road Toll (Local Highway)",
 			"currency":          "TZS", "fixed_value": 3000,
 			"expense_account":   "Road Tolls and Levies",
-			"cash_bank_account": "Petty Cash",
+			"cash_bank_account": "Cash on Hand",
 		},
 		{
 			"description":       "Weigh Bridge Fee",
 			"currency":          "TZS", "fixed_value": 5000,
 			"expense_account":   "Weigh Bridge Fees",
-			"cash_bank_account": "Petty Cash",
+			"cash_bank_account": "Cash on Hand",
 		},
 		{
 			"description":       "DSM Port Entry Fee",
 			"currency":          "TZS", "fixed_value": 10000,
 			"expense_account":   "Port Handling Charges",
-			"cash_bank_account": "Petty Cash",
+			"cash_bank_account": "Cash on Hand",
 		},
 		{
 			"description":       "Loading and Offloading Fee",
 			"currency":          "TZS", "fixed_value": 20000,
 			"expense_account":   "Loading and Offloading",
-			"cash_bank_account": "Petty Cash",
+			"cash_bank_account": "Cash on Hand",
 		},
 		{
 			"description":       "Namanga Border Fee",
 			"currency":          "TZS", "fixed_value": 20000,
 			"expense_account":   "Border Crossing Fees",
-			"cash_bank_account": "Petty Cash",
+			"cash_bank_account": "Cash on Hand",
 		},
 		{
 			"description":       "Tunduma Border Fee",
 			"currency":          "TZS", "fixed_value": 30000,
 			"expense_account":   "Border Crossing Fees",
-			"cash_bank_account": "Petty Cash",
+			"cash_bank_account": "Cash on Hand",
 		},
 		{
 			"description":       "Mutukula Border Fee",
 			"currency":          "TZS", "fixed_value": 25000,
 			"expense_account":   "Border Crossing Fees",
-			"cash_bank_account": "Petty Cash",
+			"cash_bank_account": "Cash on Hand",
 		},
 	]
 	for fe in fixed_expenses:
