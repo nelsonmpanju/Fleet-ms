@@ -17,6 +17,8 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
+from vsd_fleet_ms.utils.accounting import get_company_currency
+
 
 # ── public entry point ─────────────────────────────────────────────────────────
 
@@ -24,17 +26,18 @@ def execute(filters=None):
 	filters = frappe._dict(filters or {})
 	_validate(filters)
 
+	company_currency = get_company_currency()
 	account_meta = _get_account_meta(filters.account)
 	opening      = _get_opening_balance(filters)
-	rows         = _get_period_entries(filters, opening)
-	summary      = _build_summary(rows, opening)
+	rows         = _get_period_entries(filters, opening, company_currency)
+	summary      = _build_summary(rows, opening, company_currency)
 
-	return _columns(), rows, None, None, summary
+	return _columns(company_currency), rows, None, None, summary
 
 
 # ── columns ────────────────────────────────────────────────────────────────────
 
-def _columns():
+def _columns(company_currency):
 	return [
 		{
 			"fieldname": "posting_date",
@@ -71,19 +74,35 @@ def _columns():
 			"fieldname": "debit",
 			"label":     _("Debit"),
 			"fieldtype": "Currency",
-			"width":     180,
+			"options":   "currency",
+			"width":     140,
 		},
 		{
 			"fieldname": "credit",
 			"label":     _("Credit"),
 			"fieldtype": "Currency",
-			"width":     180,
+			"options":   "currency",
+			"width":     140,
 		},
 		{
 			"fieldname": "balance",
 			"label":     _("Balance"),
 			"fieldtype": "Currency",
-			"width":     130,
+			"options":   "currency",
+			"width":     140,
+		},
+		{
+			"fieldname": "txn_currency",
+			"label":     _("Txn Currency"),
+			"fieldtype": "Data",
+			"width":     90,
+		},
+		{
+			"fieldname": "txn_amount",
+			"label":     _("Original Amount"),
+			"fieldtype": "Currency",
+			"options":   "txn_currency",
+			"width":     140,
 		},
 	]
 
@@ -139,7 +158,7 @@ def _get_opening_balance(filters):
 	return flt(result[0].balance) if result else 0.0
 
 
-def _get_period_entries(filters, opening_balance):
+def _get_period_entries(filters, opening_balance, company_currency):
 	"""
 	Fetch GL entries within the date range, join with Ledger Entry for
 	human-readable description, then compute the running balance.
@@ -157,7 +176,10 @@ def _get_period_entries(filters, opening_balance):
 			COALESCE(le.remarks,    '')                AS description,
 			COALESCE(le.party,      gle.party, '')     AS party,
 			IFNULL(gle.debit,  0)                      AS debit,
-			IFNULL(gle.credit, 0)                      AS credit
+			IFNULL(gle.credit, 0)                      AS credit,
+			COALESCE(le.currency, '')                   AS txn_currency,
+			IFNULL(le.amount, 0)                        AS txn_amount,
+			IFNULL(le.conversion_rate, 1)               AS conversion_rate
 		FROM   `tabGL Entry` gle
 		LEFT JOIN `tabLedger Entry` le
 		       ON le.name          = gle.voucher_no
@@ -189,6 +211,9 @@ def _get_period_entries(filters, opening_balance):
 			"credit":       -opening_balance if opening_balance < 0 else 0.0,
 			"balance":      opening_balance,
 			"is_opening":   1,
+			"currency":     company_currency,
+			"txn_currency": "",
+			"txn_amount":   0,
 		}))
 
 	running      = opening_balance
@@ -201,6 +226,17 @@ def _get_period_entries(filters, opening_balance):
 		total_debit  += d
 		total_credit += c
 		row.balance   = running
+		row.currency  = company_currency
+
+		# For credit entries, show original amount as negative for clarity
+		if c and not d and flt(row.txn_amount):
+			row.txn_amount = flt(row.txn_amount)
+
+		# If txn_currency matches company currency, no need to show it
+		if row.txn_currency == company_currency:
+			row.txn_currency = ""
+			row.txn_amount = 0
+
 		result.append(row)
 
 	closing = running
@@ -215,14 +251,11 @@ def _get_period_entries(filters, opening_balance):
 			"credit":       flt(credit),
 			"balance":      None,
 			"is_footer":    row_type,
+			"currency":     company_currency,
+			"txn_currency": "",
+			"txn_amount":   0,
 		})
 
-	result.append(_footer(
-		_("Opening Balance"),
-		opening_balance if opening_balance > 0 else 0.0,
-		-opening_balance if opening_balance < 0 else 0.0,
-		"opening",
-	))
 	result.append(_footer(_("Current Period Total"), total_debit, total_credit, "period_total"))
 	result.append(_footer(
 		_("Closing Balance"),
@@ -236,7 +269,7 @@ def _get_period_entries(filters, opening_balance):
 
 # ── summary cards ──────────────────────────────────────────────────────────────
 
-def _build_summary(rows, opening_balance):
+def _build_summary(rows, opening_balance, company_currency):
 	period_rows  = [r for r in rows if not r.get("is_opening") and not r.get("is_footer")]
 	total_debit  = sum(flt(r.debit)  for r in period_rows)
 	total_credit = sum(flt(r.credit) for r in period_rows)
@@ -249,24 +282,28 @@ def _build_summary(rows, opening_balance):
 			"label":    _("Opening Balance"),
 			"value":    opening_balance,
 			"datatype": "Currency",
+			"currency": company_currency,
 			"indicator": "blue",
 		},
 		{
 			"label":    _("Total Debits"),
 			"value":    total_debit,
 			"datatype": "Currency",
+			"currency": company_currency,
 			"indicator": "orange",
 		},
 		{
 			"label":    _("Total Credits"),
 			"value":    total_credit,
 			"datatype": "Currency",
+			"currency": company_currency,
 			"indicator": "red",
 		},
 		{
 			"label":    _("Closing Balance"),
 			"value":    closing,
 			"datatype": "Currency",
+			"currency": company_currency,
 			"indicator": "green" if closing >= 0 else "red",
 		},
 	]

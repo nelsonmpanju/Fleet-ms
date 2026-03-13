@@ -196,9 +196,6 @@ frappe.ui.form.on('Requested Payment', {
 		});
 		table_html += '</div>';
 
-		// Default cash account: use the first row's cash_on_hand_account if set
-		var default_cash_account = approved_rows[0].cash_on_hand_account || 'Petty Cash';
-
 		var dialog = new frappe.ui.Dialog({
 			title: __('Create Payment Entry'),
 			fields: [
@@ -209,7 +206,9 @@ frappe.ui.form.on('Requested Payment', {
 					options: 'Account',
 					reqd: 1,
 					description: __('Account to credit (actual cash paid out)'),
-					default: default_cash_account,
+					get_query: function () {
+						return { filters: { account_sub_type: ['in', ['Cash', 'Bank']], is_group: 0 } };
+					},
 				},
 				{
 					fieldtype: 'Select',

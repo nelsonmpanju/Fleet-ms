@@ -13,31 +13,33 @@ Money Out → account is credited  (cash/asset decreases)
 import frappe
 from frappe import _
 from frappe.utils import flt
+from vsd_fleet_ms.utils.accounting import get_company_currency
 
 
 def execute(filters=None):
 	filters = frappe._dict(filters or {})
 	_validate(filters)
 
+	company_currency = get_company_currency()
 	opening  = _get_opening_balance(filters)
-	rows     = _get_period_entries(filters, opening)
-	summary  = _build_summary(rows, opening)
+	rows     = _get_period_entries(filters, opening, company_currency)
+	summary  = _build_summary(rows, opening, company_currency)
 
-	return _columns(), rows, None, None, summary
+	return _columns(company_currency), rows, None, None, summary
 
 
 # ── columns ────────────────────────────────────────────────────────────────────
 
-def _columns():
+def _columns(company_currency):
 	return [
 		{"fieldname": "posting_date", "label": _("Date"),       "fieldtype": "Date",     "width": 100},
 		{"fieldname": "voucher_no",   "label": _("Reference"),   "fieldtype": "Link",     "options": "Ledger Entry", "width": 130},
 		{"fieldname": "txn_type",     "label": _("Type"),        "fieldtype": "Data",     "width": 110},
 		{"fieldname": "description",  "label": _("Description"), "fieldtype": "Data",     "width": 280},
 		{"fieldname": "party",        "label": _("Party"),       "fieldtype": "Data",     "width": 130},
-		{"fieldname": "money_in",     "label": _("Money In"),    "fieldtype": "Currency", "width": 130},
-		{"fieldname": "money_out",    "label": _("Money Out"),   "fieldtype": "Currency", "width": 130},
-		{"fieldname": "balance",      "label": _("Balance"),     "fieldtype": "Currency", "width": 140},
+		{"fieldname": "money_in",     "label": _("Money In"),    "fieldtype": "Currency", "options": "currency", "width": 130},
+		{"fieldname": "money_out",    "label": _("Money Out"),   "fieldtype": "Currency", "options": "currency", "width": 130},
+		{"fieldname": "balance",      "label": _("Balance"),     "fieldtype": "Currency", "options": "currency", "width": 140},
 	]
 
 
@@ -68,7 +70,7 @@ def _get_opening_balance(filters):
 	return flt(result[0].balance) if result else 0.0
 
 
-def _get_period_entries(filters, opening_balance):
+def _get_period_entries(filters, opening_balance, company_currency):
 	rows = frappe.db.sql(
 		"""
 		SELECT
@@ -103,6 +105,7 @@ def _get_period_entries(filters, opening_balance):
 			"money_out":    -opening_balance if opening_balance < 0 else 0.0,
 			"balance":      opening_balance,
 			"is_opening":   1,
+			"currency":     company_currency,
 		}))
 
 	running    = opening_balance
@@ -115,6 +118,7 @@ def _get_period_entries(filters, opening_balance):
 		total_in  += mi
 		total_out += mo
 		row.balance = running
+		row.currency = company_currency
 		result.append(row)
 
 	closing = running
@@ -128,6 +132,7 @@ def _get_period_entries(filters, opening_balance):
 			"money_out":   flt(money_out),
 			"balance":     None,
 			"is_footer":   row_type,
+			"currency":    company_currency,
 		})
 
 	result.append(_footer(
@@ -149,7 +154,7 @@ def _get_period_entries(filters, opening_balance):
 
 # ── summary cards ──────────────────────────────────────────────────────────────
 
-def _build_summary(rows, opening_balance):
+def _build_summary(rows, opening_balance, company_currency):
 	period_rows = [r for r in rows if not r.get("is_opening") and not r.get("is_footer")]
 	total_in    = sum(flt(r.money_in)  for r in period_rows)
 	total_out   = sum(flt(r.money_out) for r in period_rows)
@@ -157,9 +162,9 @@ def _build_summary(rows, opening_balance):
 	closing     = data_rows[-1].balance if data_rows else opening_balance
 
 	return [
-		{"label": _("Opening Balance"), "value": opening_balance, "datatype": "Currency", "indicator": "blue"},
-		{"label": _("Total Money In"),  "value": total_in,        "datatype": "Currency", "indicator": "green"},
-		{"label": _("Total Money Out"), "value": total_out,       "datatype": "Currency", "indicator": "red"},
+		{"label": _("Opening Balance"), "value": opening_balance, "datatype": "Currency", "indicator": "blue", "currency": company_currency},
+		{"label": _("Total Money In"),  "value": total_in,        "datatype": "Currency", "indicator": "green", "currency": company_currency},
+		{"label": _("Total Money Out"), "value": total_out,       "datatype": "Currency", "indicator": "red", "currency": company_currency},
 		{"label": _("Closing Balance"), "value": closing,         "datatype": "Currency",
-		 "indicator": "green" if closing >= 0 else "red"},
+		 "indicator": "green" if closing >= 0 else "red", "currency": company_currency},
 	]

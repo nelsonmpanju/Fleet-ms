@@ -120,6 +120,15 @@ def create_sales_invoice(doc, rows):
     invoice.posting_date = nowdate()
     invoice.due_date = invoice.posting_date
 
+    # Link invoice to trip and route from the first cargo row that has them
+    for row in selected_rows:
+        if row.created_trip and not invoice.reference_trip:
+            invoice.reference_trip = row.created_trip
+        if row.cargo_route and not invoice.route:
+            invoice.route = row.cargo_route
+        if invoice.reference_trip and invoice.route:
+            break
+
     set_dimension(doc, invoice)
     for source_row, target_item in item_row_pairs:
         set_dimension(doc, invoice, src_child=source_row, tr_child=target_item)

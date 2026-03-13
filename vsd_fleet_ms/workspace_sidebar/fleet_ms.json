@@ -671,18 +671,6 @@
   {
    "child": 1,
    "collapsible": 1,
-   "icon": "droplets",
-   "indent": 0,
-   "keep_closed": 0,
-   "label": "Fuel UOM",
-   "link_to": "Fuel UOM",
-   "link_type": "DocType",
-   "show_arrow": 0,
-   "type": "Link"
-  },
-  {
-   "child": 1,
-   "collapsible": 1,
    "icon": "locate-fixed",
    "indent": 0,
    "keep_closed": 0,

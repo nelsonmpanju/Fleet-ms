@@ -13,17 +13,20 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
+from vsd_fleet_ms.utils.accounting import get_company_currency
+
 
 def execute(filters=None):
     filters = frappe._dict(filters or {})
     _validate(filters)
-    data = _get_data(filters)
-    return _columns(), data, None, _chart(data), _summary(data)
+    company_currency = get_company_currency()
+    data = _get_data(filters, company_currency)
+    return _columns(company_currency), data, None, _chart(data), _summary(data, company_currency)
 
 
 # ── columns ────────────────────────────────────────────────────────────────────
 
-def _columns():
+def _columns(company_currency):
     return [
         {"fieldname": "trip",           "label": _("Trip"),           "fieldtype": "Link",     "options": "Trips", "width": 120},
         {"fieldname": "date",           "label": _("Date"),           "fieldtype": "Date",      "width": 100},
@@ -32,10 +35,10 @@ def _columns():
         {"fieldname": "route",          "label": _("Route"),          "fieldtype": "Data",      "width": 150},
         {"fieldname": "trip_status",    "label": _("Status"),         "fieldtype": "Data",      "width": 100},
         {"fieldname": "transporter",    "label": _("Type"),           "fieldtype": "Data",      "width": 100},
-        {"fieldname": "revenue",        "label": _("Revenue"),        "fieldtype": "Currency",  "width": 130},
-        {"fieldname": "expenses",       "label": _("Expenses"),       "fieldtype": "Currency",  "width": 130},
-        {"fieldname": "fuel_cost",      "label": _("Fuel Cost"),      "fieldtype": "Currency",  "width": 120},
-        {"fieldname": "gross_profit",   "label": _("Gross Profit"),   "fieldtype": "Currency",  "width": 130},
+        {"fieldname": "revenue",        "label": _("Revenue"),        "fieldtype": "Currency",  "options": "currency", "width": 130},
+        {"fieldname": "expenses",       "label": _("Expenses"),       "fieldtype": "Currency",  "options": "currency", "width": 130},
+        {"fieldname": "fuel_cost",      "label": _("Fuel Cost"),      "fieldtype": "Currency",  "options": "currency", "width": 120},
+        {"fieldname": "gross_profit",   "label": _("Gross Profit"),   "fieldtype": "Currency",  "options": "currency", "width": 130},
         {"fieldname": "margin_pct",     "label": _("Margin %"),       "fieldtype": "Percent",   "width": 90},
     ]
 
@@ -51,7 +54,7 @@ def _validate(filters):
 
 # ── data ───────────────────────────────────────────────────────────────────────
 
-def _get_data(filters):
+def _get_data(filters, company_currency):
     conditions = ["t.docstatus IN (0,1)", "t.date BETWEEN %(from_date)s AND %(to_date)s"]
     params = {"from_date": filters.from_date, "to_date": filters.to_date}
 
@@ -162,6 +165,7 @@ def _get_data(filters):
             "fuel_cost":   fuel_cost,
             "gross_profit": gross_profit,
             "margin_pct":  round(margin_pct, 2),
+            "currency":    company_currency,
         }))
 
     return rows
@@ -190,16 +194,16 @@ def _chart(rows):
     }
 
 
-def _summary(rows):
+def _summary(rows, company_currency):
     total_rev  = sum(flt(r.revenue)      for r in rows)
     total_exp  = sum(flt(r.expenses)     for r in rows)
     total_fuel = sum(flt(r.fuel_cost)    for r in rows)
     total_gp   = sum(flt(r.gross_profit) for r in rows)
     avg_margin = (total_gp / total_rev * 100) if total_rev else 0.0
     return [
-        {"label": _("Total Revenue"),     "value": total_rev,  "datatype": "Currency", "indicator": "blue"},
-        {"label": _("Total Expenses"),    "value": total_exp,  "datatype": "Currency", "indicator": "red"},
-        {"label": _("Total Fuel Cost"),   "value": total_fuel, "datatype": "Currency", "indicator": "orange"},
-        {"label": _("Gross Profit"),      "value": total_gp,   "datatype": "Currency", "indicator": "green" if total_gp >= 0 else "red"},
+        {"label": _("Total Revenue"),     "value": total_rev,  "datatype": "Currency", "currency": company_currency, "indicator": "blue"},
+        {"label": _("Total Expenses"),    "value": total_exp,  "datatype": "Currency", "currency": company_currency, "indicator": "red"},
+        {"label": _("Total Fuel Cost"),   "value": total_fuel, "datatype": "Currency", "currency": company_currency, "indicator": "orange"},
+        {"label": _("Gross Profit"),      "value": total_gp,   "datatype": "Currency", "currency": company_currency, "indicator": "green" if total_gp >= 0 else "red"},
         {"label": _("Avg Margin %"),      "value": round(avg_margin, 2), "datatype": "Float", "indicator": "green" if avg_margin >= 0 else "red"},
     ]

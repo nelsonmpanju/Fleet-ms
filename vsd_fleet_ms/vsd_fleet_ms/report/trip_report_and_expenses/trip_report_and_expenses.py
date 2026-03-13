@@ -14,13 +14,13 @@ def execute(filters=None):
 			"label": _("Reference"),
 			"fieldtype": "Link",
 			"options": "Trips",
-			"width": 100
+			"width": 130
 		},
 		{
 			"fieldname": "transporter_type",
 			"label": _("Transporter Type"),
 			"fieldtype": "Data",
-			"width": 150
+			"width": 140
 		},
 		{
 			"fieldname": "transporter_name",
@@ -32,19 +32,19 @@ def execute(filters=None):
 			"fieldname": "vehicle_plate_number",
 			"label": _("Vehicle"),
 			"fieldtype": "Data",
-			"width": 100
+			"width": 130
 		},
 		{
 			"fieldname": "driver_name",
 			"label": _("Driver"),
 			"fieldtype": "Data",
-			"width": 200
+			"width": 180
 		},
 		{
 			"fieldname": "route",
 			"label": _("Route"),
 			"fieldtype": "Data",
-			"width": 150
+			"width": 220
 		},
 		{
 			"fieldname": "status",

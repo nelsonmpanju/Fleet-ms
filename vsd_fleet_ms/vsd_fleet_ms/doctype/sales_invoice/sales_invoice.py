@@ -6,6 +6,7 @@ from frappe.model.naming import make_autoname
 from frappe.utils import flt, nowdate
 
 from vsd_fleet_ms.vsd_fleet_ms.doctype.account.account import ensure_posting_account
+from vsd_fleet_ms.utils.accounting import get_company_currency, get_exchange_rate
 
 
 def _get_sales_settings():
@@ -25,8 +26,23 @@ class SalesInvoice(Document):
         self.calculate_totals()
 
     def on_submit(self):
+        self.link_trip_from_cargo()
         self.create_income_ledger_entry()
         self.db_set("status", "Paid" if self.payment_status == "Paid" else "Submitted")
+
+    def link_trip_from_cargo(self):
+        """Auto-fill reference_trip from linked Cargo Detail rows if not already set."""
+        if self.reference_trip:
+            return
+        # Find cargo rows that reference this invoice and have a trip
+        trip = frappe.db.get_value(
+            "Cargo Detail",
+            {"invoice": self.name, "created_trip": ["is", "set"]},
+            "created_trip",
+        )
+        if trip:
+            self.reference_trip = trip
+            self.db_set("reference_trip", trip, update_modified=False)
 
     def on_cancel(self):
         self.cancel_linked_ledger_entry()
@@ -38,9 +54,10 @@ class SalesInvoice(Document):
         if not self.due_date:
             self.due_date = self.posting_date
         if not self.currency:
-            self.currency = frappe.db.get_value("Currency", {"enabled": 1}, "name")
-        if not self.conversion_rate:
-            self.conversion_rate = 1
+            self.currency = get_company_currency()
+        self.conversion_rate = get_exchange_rate(
+            self.currency, get_company_currency(), self.posting_date
+        )
         # Auto-fill receivable account from Customer, then Transport Settings
         if not self.receivable_account and self.customer:
             self.receivable_account = frappe.db.get_value(
@@ -148,6 +165,7 @@ class SalesInvoice(Document):
                 "party_type": "Customer",
                 "party": self.customer,
                 "currency": self.currency,
+                "conversion_rate": flt(self.conversion_rate) or 1,
                 "amount": amount,
                 "reference_doctype": "Sales Invoice",
                 "reference_name": self.name,
@@ -204,6 +222,7 @@ class SalesInvoice(Document):
         self.taxable_amount = total - total_discount
         self.tax_amount = line_tax_total + header_tax
         self.grand_total = self.taxable_amount + self.tax_amount
+        self.base_grand_total = flt(self.grand_total) * (flt(self.conversion_rate) or 1)
 
         grand_total = flt(self.grand_total)
 

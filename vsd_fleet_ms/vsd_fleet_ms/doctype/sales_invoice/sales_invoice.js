@@ -36,6 +36,14 @@ frappe.ui.form.on("Sales Invoice", {
 		});
 	},
 
+	currency(frm) {
+		vsd_fleet_ms.fetch_exchange_rate(frm);
+	},
+
+	posting_date(frm) {
+		vsd_fleet_ms.fetch_exchange_rate(frm);
+	},
+
 	customer(frm) {
 		if (!frm.doc.customer) return;
 		// Fetch receivable account from Customer record first

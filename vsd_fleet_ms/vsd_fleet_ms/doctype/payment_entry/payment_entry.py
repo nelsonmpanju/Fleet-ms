@@ -4,6 +4,7 @@ import frappe
 from frappe.model.document import Document
 from frappe.model.naming import make_autoname
 from frappe.utils import flt, nowdate
+from vsd_fleet_ms.utils.accounting import get_company_currency, get_exchange_rate
 
 
 INVOICE_CONFIG = {
@@ -33,6 +34,9 @@ class PaymentEntry(Document):
 		if self.reference_doctype == "Requested Payment":
 			self._create_gl_entries_for_fund_payment(cancel=False)
 			self._mark_fund_rows_paid()
+		elif self.reference_doctype == "Trips":
+			# Fuel payment: Expense Dr / Cash Cr (no invoice reconciliation)
+			self._create_gl_entries_for_fund_payment(cancel=False)
 		else:
 			self.apply_against_reference(is_cancel=False)
 			self._create_payment_ledger_entry()
@@ -42,6 +46,8 @@ class PaymentEntry(Document):
 		if self.reference_doctype == "Requested Payment":
 			self._create_gl_entries_for_fund_payment(cancel=True)
 			self._unmark_fund_rows_paid()
+		elif self.reference_doctype == "Trips":
+			self._create_gl_entries_for_fund_payment(cancel=True)
 		else:
 			self._cancel_payment_ledger_entry()
 			self.apply_against_reference(is_cancel=True)
@@ -53,7 +59,7 @@ class PaymentEntry(Document):
 		if not self.status:
 			self.status = "Draft"
 		if not self.currency:
-			self.currency = frappe.db.get_value("Currency", {"enabled": 1}, "name") or "TZS"
+			self.currency = get_company_currency()
 		self.paid_amount = flt(self.paid_amount)
 
 	def validate_amount(self):
@@ -77,9 +83,19 @@ class PaymentEntry(Document):
 				frappe.throw("Cash / Bank Account is required for fund payment.")
 			return
 
+		# Fuel payment via Trip
+		if self.reference_doctype == "Trips":
+			if not frappe.db.exists("Trips", self.reference_name):
+				frappe.throw(f"Trip {self.reference_name} was not found.")
+			if not self.payable_account:
+				frappe.throw("Expense Account is required for fuel payment.")
+			if not self.cash_bank_account:
+				frappe.throw("Cash / Bank Account is required for fuel payment.")
+			return
+
 		config = INVOICE_CONFIG.get(self.reference_doctype)
 		if not config:
-			frappe.throw("Reference DocType must be Sales Invoice, Purchase Invoice, or Requested Payment.")
+			frappe.throw("Reference DocType must be Sales Invoice, Purchase Invoice, Requested Payment, or Trips.")
 
 		self.payment_type = config["payment_type"]
 		self.party_type = config["party_type"]
@@ -125,20 +141,31 @@ class PaymentEntry(Document):
 
 		posting_date = str(self.posting_date)
 		fiscal_year = posting_date[:4]
+		company_currency = get_company_currency()
+		exchange_rate = get_exchange_rate(self.currency, company_currency, self.posting_date) if self.currency != company_currency else 1
 
 		def _make_entry(account, debit, credit, party_type=None, party=None):
+			account_currency = frappe.db.get_value("Account", account, "account_currency") or company_currency
+			if account_currency == company_currency:
+				debit_acc = flt(debit)
+				credit_acc = flt(credit)
+			else:
+				debit_acc = flt(debit) / exchange_rate if exchange_rate else flt(debit)
+				credit_acc = flt(credit) / exchange_rate if exchange_rate else flt(credit)
+
 			return frappe._dict({
 				"posting_date": posting_date,
 				"fiscal_year": fiscal_year,
 				"voucher_type": self.doctype,
 				"voucher_no": self.name,
 				"account": account,
+				"account_currency": account_currency,
 				"party_type": party_type,
 				"party": party,
 				"debit": flt(debit),
 				"credit": flt(credit),
-				"debit_in_account_currency": flt(debit),
-				"credit_in_account_currency": flt(credit),
+				"debit_in_account_currency": debit_acc,
+				"credit_in_account_currency": credit_acc,
 				"against_voucher_type": self.reference_doctype,
 				"against_voucher": self.reference_name,
 				"remarks": self.remarks or f"Payment against {self.reference_name}",
@@ -178,17 +205,10 @@ class PaymentEntry(Document):
 			pass
 
 	def _mark_fund_rows_paid(self):
-		"""Link this Payment Entry back to the fund rows it pays for."""
-		# Find rows with this PE linked via payment_entry field or update by parent
-		frappe.db.sql(
-			"""UPDATE `tabRequested Fund Details`
-			SET journal_entry = %s
-			WHERE parent = %s
-			  AND parenttype IN ('Trips','Manifest')
-			  AND request_status = 'Accounts Approved'
-			  AND (journal_entry IS NULL OR journal_entry = '')""",
-			(self.name, self._get_reference_docname()),
-		)
+		"""No-op: individual row linking is handled by create_fund_payment_entry.
+		The old bulk UPDATE marked ALL unpaid rows with a single PE name,
+		which caused 'already exists' errors when paying rows individually."""
+		pass
 
 	def _unmark_fund_rows_paid(self):
 		frappe.db.sql(
@@ -303,6 +323,9 @@ class PaymentEntry(Document):
 		debit_credit = "Debit" if is_receive else "Credit"
 		party_type = "Customer" if is_receive else "Supplier"
 
+		company_currency = get_company_currency()
+		conversion_rate = get_exchange_rate(self.currency, company_currency, self.posting_date) if self.currency != company_currency else 1
+
 		ledger_doc = frappe.get_doc({
 			"doctype": "Ledger Entry",
 			"posting_date": self.posting_date,
@@ -314,6 +337,7 @@ class PaymentEntry(Document):
 			"party_type": party_type,
 			"party": self.party,
 			"currency": self.currency,
+			"conversion_rate": conversion_rate,
 			"amount": amount,
 			"reference_doctype": "Payment Entry",
 			"reference_name": self.name,
@@ -454,6 +478,14 @@ def create_fund_payment_entry(
 			errors.append(f"{row_name}: Payable Account is not set — please fill it in the Accounts Approval tab")
 			continue
 
+		# Block group accounts
+		if frappe.db.get_value("Account", row.payable_account, "is_group"):
+			errors.append(f"{row_name}: Payable Account '{row.payable_account}' is a group account — select a posting account")
+			continue
+		if frappe.db.get_value("Account", cash_bank_account, "is_group"):
+			errors.append(f"{row_name}: Cash/Bank Account '{cash_bank_account}' is a group account — select a posting account")
+			continue
+
 		try:
 			# If only manager-Approved (accounts step not done yet), run it inline
 			if row.request_status == "Approved":
@@ -468,7 +500,7 @@ def create_fund_payment_entry(
 			pe.mode_of_payment = mode_of_payment
 			pe.party_type = row.party_type or "Driver"
 			pe.party = row.party
-			pe.currency = row.request_currency or (frappe.db.get_value("Currency", {"enabled": 1}, "name") or "TZS")
+			pe.currency = row.request_currency or get_company_currency()
 			pe.paid_amount = flt(row.request_amount)
 			pe.payable_account = row.payable_account
 			pe.cash_bank_account = cash_bank_account

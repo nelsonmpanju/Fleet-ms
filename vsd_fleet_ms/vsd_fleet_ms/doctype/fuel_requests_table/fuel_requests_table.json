@@ -15,7 +15,6 @@
   "item_code",
   "quantity",
   "disbursement_type",
-  "supplier",
   "cost_per_litre",
   "column_break_yed9z",
   "item_name",
@@ -90,15 +89,6 @@
    "in_list_view": 1,
    "label": "Disbursement Type",
    "options": "\nFrom Supplier\nCash",
-   "read_only_depends_on": "eval:doc.status == \"Approved\""
-  },
-  {
-   "columns": 2,
-   "fieldname": "supplier",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Supplier",
-   "options": "Supplier",
    "read_only_depends_on": "eval:doc.status == \"Approved\""
   },
   {
@@ -195,7 +185,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2023-06-13 12:38:58.198351",
+ "modified": "2026-02-26 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "VSD Fleet MS",
  "name": "Fuel Requests Table",

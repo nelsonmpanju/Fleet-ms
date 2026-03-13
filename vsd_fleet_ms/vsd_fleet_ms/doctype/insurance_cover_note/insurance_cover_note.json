@@ -32,6 +32,7 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Cover Note Number",
+   "read_only": 1,
    "reqd": 1,
    "unique": 1
   },
@@ -40,7 +41,8 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Truck",
-   "options": "Truck"
+   "options": "Truck",
+   "read_only": 1
   },
   {
    "fieldname": "vehicle",
@@ -49,12 +51,13 @@
    "read_only": 1
   },
   {
+   "default": "Active",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
    "options": "Active\nExpiring Soon\nExpired",
-   "default": "Active"
+   "read_only": 1
   },
   {
    "fieldname": "cb1",
@@ -64,17 +67,20 @@
    "fieldname": "insurance_company",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Insurance Company"
+   "label": "Insurance Company",
+   "read_only": 1
   },
   {
    "fieldname": "policy_number",
    "fieldtype": "Data",
-   "label": "Policy Number"
+   "label": "Policy Number",
+   "read_only": 1
   },
   {
    "fieldname": "policy_type",
    "fieldtype": "Data",
-   "label": "Policy Type"
+   "label": "Policy Type",
+   "read_only": 1
   },
   {
    "fieldname": "sb_dates",
@@ -85,14 +91,16 @@
    "bold": 1,
    "fieldname": "cover_note_start_date",
    "fieldtype": "Date",
-   "label": "Start Date"
+   "label": "Start Date",
+   "read_only": 1
   },
   {
    "bold": 1,
    "fieldname": "cover_note_end_date",
    "fieldtype": "Date",
    "in_list_view": 1,
-   "label": "Expiry Date"
+   "label": "Expiry Date",
+   "read_only": 1
   },
   {
    "fieldname": "days_to_expiry",
@@ -108,7 +116,8 @@
   {
    "fieldname": "sum_insured",
    "fieldtype": "Currency",
-   "label": "Sum Insured"
+   "label": "Sum Insured",
+   "read_only": 1
   },
   {
    "fieldname": "registration_number",
@@ -128,8 +137,9 @@
    "read_only": 1
   }
  ],
+ "in_create": 1,
  "links": [],
- "modified": "2026-02-19 10:00:00.000000",
+ "modified": "2026-03-11 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "VSD Fleet MS",
  "name": "Insurance Cover Note",
@@ -137,7 +147,6 @@
  "owner": "Administrator",
  "permissions": [
   {
-   "create": 1,
    "delete": 1,
    "email": 1,
    "export": 1,
@@ -149,15 +158,13 @@
    "write": 1
   },
   {
-   "create": 1,
    "email": 1,
    "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
    "role": "All",
-   "share": 1,
-   "write": 1
+   "share": 1
   }
  ],
  "sort_field": "cover_note_end_date",

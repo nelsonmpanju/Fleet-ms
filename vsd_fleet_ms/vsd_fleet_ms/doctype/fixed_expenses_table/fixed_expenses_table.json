@@ -45,8 +45,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Party Type",
-   "options": "Driver\nSupplier\nAgent",
-   "reqd": 1
+   "options": "\nDriver\nSupplier\nAgent"
   }
  ],
  "index_web_pages_for_search": 1,

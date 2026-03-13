@@ -29,6 +29,7 @@
    "fieldtype": "Select",
    "label": "Series",
    "options": "PB-.YYYY.-.####",
+   "read_only": 1,
    "set_only_once": 1
   },
   {
@@ -38,6 +39,7 @@
    "in_list_view": 1,
    "label": "Truck",
    "options": "Truck",
+   "read_only": 1,
    "reqd": 1
   },
   {
@@ -56,12 +58,13 @@
    "read_only": 1
   },
   {
+   "default": "Outstanding",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
    "options": "Outstanding\nPaid\nWaived",
-   "default": "Outstanding"
+   "read_only": 1
   },
   {
    "fieldname": "cb1",
@@ -71,18 +74,21 @@
    "fieldname": "amount",
    "fieldtype": "Currency",
    "in_list_view": 1,
-   "label": "Amount"
+   "label": "Amount",
+   "read_only": 1
   },
   {
    "fieldname": "issued_date",
    "fieldtype": "Date",
-   "label": "Issued Date"
+   "label": "Issued Date",
+   "read_only": 1
   },
   {
    "fieldname": "due_date",
    "fieldtype": "Date",
    "in_list_view": 1,
-   "label": "Due Date"
+   "label": "Due Date",
+   "read_only": 1
   },
   {
    "fieldname": "sb_details",
@@ -92,17 +98,20 @@
   {
    "fieldname": "location",
    "fieldtype": "Data",
-   "label": "Location"
+   "label": "Location",
+   "read_only": 1
   },
   {
    "fieldname": "offence",
    "fieldtype": "Data",
-   "label": "Offence"
+   "label": "Offence",
+   "read_only": 1
   },
   {
    "fieldname": "description",
    "fieldtype": "Small Text",
-   "label": "Description"
+   "label": "Description",
+   "read_only": 1
   },
   {
    "fieldname": "sb_sync",
@@ -116,8 +125,9 @@
    "read_only": 1
   }
  ],
+ "in_create": 1,
  "links": [],
- "modified": "2026-02-19 10:00:00.000000",
+ "modified": "2026-03-11 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "VSD Fleet MS",
  "name": "Parking Bill",
@@ -125,7 +135,6 @@
  "owner": "Administrator",
  "permissions": [
   {
-   "create": 1,
    "delete": 1,
    "email": 1,
    "export": 1,
@@ -137,15 +146,13 @@
    "write": 1
   },
   {
-   "create": 1,
    "email": 1,
    "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
    "role": "All",
-   "share": 1,
-   "write": 1
+   "share": 1
   }
  ],
  "sort_field": "creation",

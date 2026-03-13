@@ -7,6 +7,7 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "default_currency",
   "vehicle_fuel_parent_warehouse",
   "sales_item_group",
   "fuel_item_group",
@@ -18,9 +19,26 @@
   "default_income_account",
   "default_receivable_account",
   "column_break_lutn",
-  "default_payable_account"
+  "default_payable_account",
+  "traccar_section",
+  "traccar_enabled",
+  "traccar_server_url",
+  "traccar_sync_interval",
+  "column_break_traccar",
+  "traccar_auth_method",
+  "traccar_api_token",
+  "traccar_email",
+  "traccar_password"
  ],
  "fields": [
+  {
+   "description": "The base/home currency for all accounting entries (e.g. TZS)",
+   "fieldname": "default_currency",
+   "fieldtype": "Link",
+   "label": "Company Currency",
+   "options": "Currency",
+   "reqd": 1
+  },
   {
    "fieldname": "vehicle_fuel_parent_warehouse",
    "fieldtype": "Link",
@@ -83,7 +101,7 @@
    "options": "Account"
   },
   {
-   "description": "Accounts Payable (Creditors) — credited when an expense is approved for a supplier",
+   "description": "Accounts Payable (Creditors) \u2014 credited when an expense is approved for a supplier",
    "fieldname": "default_payable_account",
    "fieldtype": "Link",
    "label": "Default Payable Account",
@@ -92,12 +110,68 @@
   {
    "fieldname": "column_break_lutn",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "traccar_section",
+   "fieldtype": "Section Break",
+   "label": "Traccar GPS Settings"
+  },
+  {
+   "default": "0",
+   "fieldname": "traccar_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Traccar GPS"
+  },
+  {
+   "depends_on": "eval:doc.traccar_enabled",
+   "description": "e.g. http://traccar.example.com:8082",
+   "fieldname": "traccar_server_url",
+   "fieldtype": "Data",
+   "label": "Traccar Server URL"
+  },
+  {
+   "default": "Every 15 Minutes",
+   "depends_on": "eval:doc.traccar_enabled",
+   "fieldname": "traccar_sync_interval",
+   "fieldtype": "Select",
+   "label": "Sync Interval",
+   "options": "Every 5 Minutes\nEvery 10 Minutes\nEvery 15 Minutes\nEvery 30 Minutes"
+  },
+  {
+   "fieldname": "column_break_traccar",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Token",
+   "depends_on": "eval:doc.traccar_enabled",
+   "fieldname": "traccar_auth_method",
+   "fieldtype": "Select",
+   "label": "Authentication Method",
+   "options": "Token\nEmail & Password"
+  },
+  {
+   "depends_on": "eval:doc.traccar_enabled && doc.traccar_auth_method=='Token'",
+   "fieldname": "traccar_api_token",
+   "fieldtype": "Password",
+   "label": "API Token"
+  },
+  {
+   "depends_on": "eval:doc.traccar_enabled && doc.traccar_auth_method=='Email & Password'",
+   "fieldname": "traccar_email",
+   "fieldtype": "Data",
+   "label": "Email"
+  },
+  {
+   "depends_on": "eval:doc.traccar_enabled && doc.traccar_auth_method=='Email & Password'",
+   "fieldname": "traccar_password",
+   "fieldtype": "Password",
+   "label": "Password"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-02-22 10:52:33.089734",
+ "modified": "2026-03-12 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "VSD Fleet MS",
  "name": "Transport Settings",

@@ -14,21 +14,23 @@ Account hierarchy is preserved — group accounts are shown with totals.
 import frappe
 from frappe import _
 from frappe.utils import flt
+from vsd_fleet_ms.utils.accounting import get_company_currency
 
 
 def execute(filters=None):
     filters = frappe._dict(filters or {})
     _validate(filters)
 
+    company_currency = get_company_currency()
     accounts = _get_account_tree()
     gl_data = _get_gl_data(filters)
-    rows, summary = _build_rows(accounts, gl_data, filters)
-    return _columns(), rows, None, None, summary
+    rows, summary = _build_rows(accounts, gl_data, filters, company_currency)
+    return _columns(company_currency), rows, None, None, summary
 
 
 # ── columns ────────────────────────────────────────────────────────────────────
 
-def _columns():
+def _columns(company_currency):
     return [
         {
             "fieldname": "account",
@@ -47,36 +49,42 @@ def _columns():
             "fieldname": "opening_debit",
             "label": _("Opening Dr"),
             "fieldtype": "Currency",
+            "options": "currency",
             "width": 120,
         },
         {
             "fieldname": "opening_credit",
             "label": _("Opening Cr"),
             "fieldtype": "Currency",
+            "options": "currency",
             "width": 120,
         },
         {
             "fieldname": "debit",
             "label": _("Period Dr"),
             "fieldtype": "Currency",
+            "options": "currency",
             "width": 120,
         },
         {
             "fieldname": "credit",
             "label": _("Period Cr"),
             "fieldtype": "Currency",
+            "options": "currency",
             "width": 120,
         },
         {
             "fieldname": "closing_debit",
             "label": _("Closing Dr"),
             "fieldtype": "Currency",
+            "options": "currency",
             "width": 120,
         },
         {
             "fieldname": "closing_credit",
             "label": _("Closing Cr"),
             "fieldtype": "Currency",
+            "options": "currency",
             "width": 120,
         },
     ]
@@ -159,7 +167,7 @@ def _get_gl_data(filters):
 
 # ── row builder ────────────────────────────────────────────────────────────────
 
-def _build_rows(accounts, gl_data, filters):
+def _build_rows(accounts, gl_data, filters, company_currency):
     opening_map, period_map = gl_data
     account_type_filter = filters.get("account_type")
     show_zero = filters.get("show_zero_balances")
@@ -232,6 +240,7 @@ def _build_rows(accounts, gl_data, filters):
             "closing_credit": cc,
             "indent":         indent,
             "is_group":       acct.is_group,
+            "currency":       company_currency,
         }))
 
         if not acct.is_group:
@@ -240,12 +249,12 @@ def _build_rows(accounts, gl_data, filters):
             total_cd += cd; total_cc += cc
 
     summary = [
-        {"label": _("Total Opening Dr"), "value": total_od, "datatype": "Currency", "indicator": "blue"},
-        {"label": _("Total Opening Cr"), "value": total_oc, "datatype": "Currency", "indicator": "blue"},
-        {"label": _("Period Debits"),    "value": total_pd, "datatype": "Currency", "indicator": "orange"},
-        {"label": _("Period Credits"),   "value": total_pc, "datatype": "Currency", "indicator": "red"},
-        {"label": _("Total Closing Dr"), "value": total_cd, "datatype": "Currency", "indicator": "green"},
-        {"label": _("Total Closing Cr"), "value": total_cc, "datatype": "Currency", "indicator": "green"},
+        {"label": _("Total Opening Dr"), "value": total_od, "datatype": "Currency", "indicator": "blue", "currency": company_currency},
+        {"label": _("Total Opening Cr"), "value": total_oc, "datatype": "Currency", "indicator": "blue", "currency": company_currency},
+        {"label": _("Period Debits"),    "value": total_pd, "datatype": "Currency", "indicator": "orange", "currency": company_currency},
+        {"label": _("Period Credits"),   "value": total_pc, "datatype": "Currency", "indicator": "red", "currency": company_currency},
+        {"label": _("Total Closing Dr"), "value": total_cd, "datatype": "Currency", "indicator": "green", "currency": company_currency},
+        {"label": _("Total Closing Cr"), "value": total_cc, "datatype": "Currency", "indicator": "green", "currency": company_currency},
     ]
     return rows, summary
 

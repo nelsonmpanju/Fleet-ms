@@ -40,6 +40,15 @@
   "column_break_gxeno",
   "trans_ms__driver_name",
   "trans_ms_default_trailer",
+  "gps_tracking_tab",
+  "traccar_device_id",
+  "traccar_unique_id",
+  "column_break_traccar_truck",
+  "traccar_last_update",
+  "traccar_device_status",
+  "traccar_last_latitude",
+  "traccar_last_longitude",
+  "traccar_last_address",
   "documents_section",
   "vehicle_documents"
  ],
@@ -97,7 +106,7 @@
    "fieldname": "fuel_uom",
    "fieldtype": "Link",
    "label": "Fuel UOM",
-   "options": "Fuel UOM",
+   "options": "UOM",
    "reqd": 1
   },
   {
@@ -181,6 +190,61 @@
    "options": "Trips"
   },
   {
+   "fieldname": "gps_tracking_tab",
+   "fieldtype": "Tab Break",
+   "label": "GPS Tracking"
+  },
+  {
+   "description": "Auto-populated from Traccar",
+   "fieldname": "traccar_device_id",
+   "fieldtype": "Int",
+   "label": "Traccar Device ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "traccar_unique_id",
+   "fieldtype": "Data",
+   "label": "Traccar Unique ID (IMEI)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_traccar_truck",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "traccar_last_update",
+   "fieldtype": "Datetime",
+   "label": "Last GPS Update",
+   "read_only": 1
+  },
+  {
+   "description": "online / offline / unknown",
+   "fieldname": "traccar_device_status",
+   "fieldtype": "Data",
+   "label": "Device Status",
+   "read_only": 1
+  },
+  {
+   "fieldname": "traccar_last_latitude",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Last Latitude",
+   "read_only": 1
+  },
+  {
+   "fieldname": "traccar_last_longitude",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Last Longitude",
+   "read_only": 1
+  },
+  {
+   "fieldname": "traccar_last_address",
+   "fieldtype": "Small Text",
+   "label": "Last Known Location",
+   "read_only": 1
+  },
+  {
    "fieldname": "documents_section",
    "fieldtype": "Tab Break",
    "label": "Documents"
@@ -244,7 +308,7 @@
  "image_field": "image",
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2024-03-25 16:44:36.452165",
+ "modified": "2026-03-12 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "VSD Fleet MS",
  "name": "Truck",

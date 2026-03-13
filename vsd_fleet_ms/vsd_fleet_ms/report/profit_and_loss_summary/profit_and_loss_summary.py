@@ -1,16 +1,19 @@
 import frappe
 from frappe import _
 from frappe.utils import flt
+from vsd_fleet_ms.utils.accounting import get_company_currency
 
 
 def execute(filters=None):
 	filters = frappe._dict(filters or {})
 	validate_filters(filters)
+	company_currency = get_company_currency()
 	metrics = get_metrics(filters)
-	columns = get_columns()
+	metrics["currency"] = company_currency
+	columns = get_columns(company_currency)
 	data = [metrics]
 	chart = get_chart(metrics)
-	summary = get_summary(metrics)
+	summary = get_summary(metrics, company_currency)
 	return columns, data, None, chart, summary
 
 
@@ -21,26 +24,26 @@ def validate_filters(filters):
 		frappe.throw(_("From Date cannot be after To Date."))
 
 
-def get_columns():
+def get_columns(company_currency):
 	return [
 		{"fieldname": "from_date", "label": _("From Date"), "fieldtype": "Date", "width": 100},
 		{"fieldname": "to_date", "label": _("To Date"), "fieldtype": "Date", "width": 100},
 		{"fieldname": "currency", "label": _("Currency"), "fieldtype": "Link", "options": "Currency", "width": 90},
-		{"fieldname": "sales_total", "label": _("Sales"), "fieldtype": "Currency", "width": 120},
-		{"fieldname": "purchase_total", "label": _("Purchases"), "fieldtype": "Currency", "width": 120},
-		{"fieldname": "ledger_income", "label": _("Ledger Income"), "fieldtype": "Currency", "width": 130},
-		{"fieldname": "ledger_expense", "label": _("Ledger Expense"), "fieldtype": "Currency", "width": 130},
-		{"fieldname": "trip_expense_total", "label": _("Trip Expense (Ledger)"), "fieldtype": "Currency", "width": 160},
-		{"fieldname": "stock_receipt_value", "label": _("Stock Receipt Value"), "fieldtype": "Currency", "width": 150},
-		{"fieldname": "stock_issue_value", "label": _("Stock Issue Value"), "fieldtype": "Currency", "width": 140},
-		{"fieldname": "gross_profit", "label": _("Gross Profit"), "fieldtype": "Currency", "width": 120},
-		{"fieldname": "net_profit", "label": _("Net Profit"), "fieldtype": "Currency", "width": 120},
-		{"fieldname": "payments_received", "label": _("Payments Received"), "fieldtype": "Currency", "width": 140},
-		{"fieldname": "payments_made", "label": _("Payments Made"), "fieldtype": "Currency", "width": 130},
-		{"fieldname": "net_cash_flow", "label": _("Net Cash Flow"), "fieldtype": "Currency", "width": 120},
-		{"fieldname": "receivables_outstanding", "label": _("Receivables Outstanding"), "fieldtype": "Currency", "width": 160},
-		{"fieldname": "payables_outstanding", "label": _("Payables Outstanding"), "fieldtype": "Currency", "width": 150},
-		{"fieldname": "net_position", "label": _("Net Position"), "fieldtype": "Currency", "width": 120},
+		{"fieldname": "sales_total", "label": _("Sales"), "fieldtype": "Currency", "options": "currency", "width": 120},
+		{"fieldname": "purchase_total", "label": _("Purchases"), "fieldtype": "Currency", "options": "currency", "width": 120},
+		{"fieldname": "ledger_income", "label": _("Ledger Income"), "fieldtype": "Currency", "options": "currency", "width": 130},
+		{"fieldname": "ledger_expense", "label": _("Ledger Expense"), "fieldtype": "Currency", "options": "currency", "width": 130},
+		{"fieldname": "trip_expense_total", "label": _("Trip Expense (Ledger)"), "fieldtype": "Currency", "options": "currency", "width": 160},
+		{"fieldname": "stock_receipt_value", "label": _("Stock Receipt Value"), "fieldtype": "Currency", "options": "currency", "width": 150},
+		{"fieldname": "stock_issue_value", "label": _("Stock Issue Value"), "fieldtype": "Currency", "options": "currency", "width": 140},
+		{"fieldname": "gross_profit", "label": _("Gross Profit"), "fieldtype": "Currency", "options": "currency", "width": 120},
+		{"fieldname": "net_profit", "label": _("Net Profit"), "fieldtype": "Currency", "options": "currency", "width": 120},
+		{"fieldname": "payments_received", "label": _("Payments Received"), "fieldtype": "Currency", "options": "currency", "width": 140},
+		{"fieldname": "payments_made", "label": _("Payments Made"), "fieldtype": "Currency", "options": "currency", "width": 130},
+		{"fieldname": "net_cash_flow", "label": _("Net Cash Flow"), "fieldtype": "Currency", "options": "currency", "width": 120},
+		{"fieldname": "receivables_outstanding", "label": _("Receivables Outstanding"), "fieldtype": "Currency", "options": "currency", "width": 160},
+		{"fieldname": "payables_outstanding", "label": _("Payables Outstanding"), "fieldtype": "Currency", "options": "currency", "width": 150},
+		{"fieldname": "net_position", "label": _("Net Position"), "fieldtype": "Currency", "options": "currency", "width": 120},
 	]
 
 
@@ -66,13 +69,7 @@ def get_metrics(filters):
 	net_cash_flow = payments_received - payments_made
 	net_position = receivables_outstanding - payables_outstanding
 
-	currency = (
-		frappe.db.get_value("Currency", {"enabled": 1}, "name")
-		or sales.currency
-		or purchases.currency
-		or ledger.currency
-		or "USD"
-	)
+	currency = get_company_currency()
 
 	return {
 		"from_date": filters.from_date,
@@ -294,14 +291,14 @@ def get_chart(metrics):
 	}
 
 
-def get_summary(metrics):
+def get_summary(metrics, company_currency):
 	return [
-		{"value": metrics.get("sales_total"), "label": _("Sales"), "datatype": "Currency"},
-		{"value": metrics.get("purchase_total"), "label": _("Purchases"), "datatype": "Currency"},
-		{"value": metrics.get("ledger_income"), "label": _("Ledger Income"), "datatype": "Currency"},
-		{"value": metrics.get("ledger_expense"), "label": _("Ledger Expense"), "datatype": "Currency"},
-		{"value": metrics.get("stock_issue_value"), "label": _("Stock Issue Value"), "datatype": "Currency"},
-		{"value": metrics.get("gross_profit"), "label": _("Gross Profit"), "datatype": "Currency"},
-		{"value": metrics.get("net_profit"), "label": _("Net Profit"), "datatype": "Currency"},
-		{"value": metrics.get("net_cash_flow"), "label": _("Net Cash Flow"), "datatype": "Currency"},
+		{"value": metrics.get("sales_total"), "label": _("Sales"), "datatype": "Currency", "currency": company_currency},
+		{"value": metrics.get("purchase_total"), "label": _("Purchases"), "datatype": "Currency", "currency": company_currency},
+		{"value": metrics.get("ledger_income"), "label": _("Ledger Income"), "datatype": "Currency", "currency": company_currency},
+		{"value": metrics.get("ledger_expense"), "label": _("Ledger Expense"), "datatype": "Currency", "currency": company_currency},
+		{"value": metrics.get("stock_issue_value"), "label": _("Stock Issue Value"), "datatype": "Currency", "currency": company_currency},
+		{"value": metrics.get("gross_profit"), "label": _("Gross Profit"), "datatype": "Currency", "currency": company_currency},
+		{"value": metrics.get("net_profit"), "label": _("Net Profit"), "datatype": "Currency", "currency": company_currency},
+		{"value": metrics.get("net_cash_flow"), "label": _("Net Cash Flow"), "datatype": "Currency", "currency": company_currency},
 	]

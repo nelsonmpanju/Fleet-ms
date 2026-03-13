@@ -10,7 +10,7 @@ frappe.ui.form.on('Insurance Cover Note', {
 					return;
 				}
 				frappe.call({
-					method: 'vsd_fleet_ms.utils.compliance.sync_insurance',
+					method: 'vsd_fleet_ms.vsd_fleet_ms.utils.compliance.sync_insurance',
 					args: { truck: frm.doc.truck },
 					freeze: true,
 					freeze_message: __('Verifying cover note from TIRA...'),

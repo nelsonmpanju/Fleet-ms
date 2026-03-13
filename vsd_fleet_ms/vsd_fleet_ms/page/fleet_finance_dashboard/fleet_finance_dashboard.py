@@ -82,7 +82,7 @@ def get_finance_kpis(from_date=None, to_date=None):
         SELECT IFNULL(SUM(gle.debit - gle.credit), 0) AS balance
         FROM `tabGL Entry` gle
         JOIN `tabAccount` acc ON acc.name = gle.account
-        WHERE acc.account_type IN ('Cash', 'Bank') AND acc.is_group = 0
+        WHERE acc.account_sub_type IN ('Cash', 'Bank') AND acc.is_group = 0
     """, as_dict=True)
     cash_balance = flt(cash_balance_row[0].balance) if cash_balance_row else 0.0
 

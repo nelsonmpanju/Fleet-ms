@@ -101,6 +101,39 @@ frappe.ui.form.on('Truck', {
 				});
 			}, __('Compliance'));
 
+			// --- GPS Tracking buttons ---
+			frm.add_custom_button(__('Link Traccar Device'), function() {
+				frappe.call({
+					method: 'vsd_fleet_ms.vsd_fleet_ms.utils.traccar.link_truck_to_device',
+					args: { truck_name: frm.doc.name },
+					freeze: true,
+					freeze_message: __('Searching for device in Traccar...'),
+					callback: function(r) {
+						if (r.message) {
+							frappe.msgprint(r.message);
+							frm.reload_doc();
+						}
+					}
+				});
+			}, __('GPS'));
+
+			if (frm.doc.traccar_device_id) {
+				frm.add_custom_button(__('Sync GPS Position'), function() {
+					frappe.call({
+						method: 'vsd_fleet_ms.vsd_fleet_ms.utils.traccar.sync_vehicle_position',
+						args: { truck_name: frm.doc.name },
+						freeze: true,
+						freeze_message: __('Fetching latest position from Traccar...'),
+						callback: function(r) {
+							if (r.message) {
+								frappe.msgprint(r.message);
+								frm.reload_doc();
+							}
+						}
+					});
+				}, __('GPS'));
+			}
+
 			// Show compliance summary card
 			frappe.call({
 				method: 'vsd_fleet_ms.vsd_fleet_ms.utils.compliance.get_truck_compliance_summary',

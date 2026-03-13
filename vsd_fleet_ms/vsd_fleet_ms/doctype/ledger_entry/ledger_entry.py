@@ -7,6 +7,7 @@ from frappe.model.naming import make_autoname
 from frappe.utils import flt, nowdate
 
 from vsd_fleet_ms.vsd_fleet_ms.doctype.account.account import ensure_posting_account
+from vsd_fleet_ms.utils.accounting import get_company_currency, get_exchange_rate
 
 # Account type expected for each entry type (Income/Expense only)
 _ACCOUNT_TYPE_BY_ENTRY = {
@@ -48,12 +49,17 @@ class LedgerEntry(Document):
 		if not self.posting_date:
 			self.posting_date = nowdate()
 		if not self.currency:
-			self.currency = frappe.db.get_value("Currency", {"enabled": 1}, "name") or "USD"
+			self.currency = get_company_currency()
 		if not self.source_type:
 			self.source_type = "Manual"
 		if not self.status:
 			self.status = "Draft"
 		self.amount = flt(self.amount)
+		company_currency = get_company_currency()
+		if not flt(self.conversion_rate):
+			self.conversion_rate = get_exchange_rate(
+				self.currency, company_currency, self.posting_date
+			)
 
 	def validate_amount(self):
 		if self.amount <= 0:
@@ -178,26 +184,49 @@ class LedgerEntry(Document):
 		)
 
 		debit_acct, credit_acct = self._resolve_debit_credit_accounts()
-		amount = flt(self.amount)
+		party_acct = self._resolve_party_account()
+		txn_amount = flt(self.amount)          # amount in transaction (document) currency
+		company_currency = get_company_currency()
+		txn_currency = self.currency or company_currency
+		conversion_rate = flt(self.conversion_rate) or 1
+
+		# GL debit/credit are ALWAYS in company currency
+		if txn_currency == company_currency:
+			company_amount = txn_amount
+		else:
+			company_amount = txn_amount * conversion_rate
 
 		for acct, debit, credit in [
-			(debit_acct,  amount, 0.0),
-			(credit_acct, 0.0, amount),
+			(debit_acct,  company_amount, 0.0),
+			(credit_acct, 0.0, company_amount),
 		]:
+			is_party_acct = party_acct and acct == party_acct
+			acct_currency = frappe.db.get_value("Account", acct, "account_currency") or company_currency
+
+			# debit/credit_in_account_currency depends on the account's own currency
+			if acct_currency == company_currency:
+				# Account is in company currency — same as GL amount
+				debit_in_acc = debit
+				credit_in_acc = credit
+			else:
+				# Account is in foreign currency (e.g. USD) — use original txn amount
+				debit_in_acc = txn_amount if debit else 0.0
+				credit_in_acc = txn_amount if credit else 0.0
+
 			frappe.get_doc({
 				"doctype": "GL Entry",
 				"posting_date": self.posting_date,
 				"account": acct,
 				"debit": debit,
 				"credit": credit,
-				"debit_in_account_currency": debit,
-				"credit_in_account_currency": credit,
-				"account_currency": self.currency,
+				"debit_in_account_currency": debit_in_acc,
+				"credit_in_account_currency": credit_in_acc,
+				"account_currency": acct_currency,
 				"voucher_type": "Ledger Entry",
 				"voucher_no": self.name,
 				"against": credit_acct if debit else debit_acct,
-				"party_type": self.party_type or "",
-				"party": self.party or "",
+				"party_type": self.party_type if is_party_acct else "",
+				"party": self.party if is_party_acct else "",
 			}).insert(ignore_permissions=True)
 
 	def _cancel_gl_entries(self):
@@ -235,6 +264,28 @@ class LedgerEntry(Document):
 			return _OB_EQUITY_ACCOUNT, self.account
 
 		frappe.throw(_("Unknown entry type: {0}").format(self.entry_type))
+
+	def _resolve_party_account(self):
+		"""
+		Determine which account should carry the party_type/party.
+
+		Party belongs on the main business account (expense, income, payable,
+		receivable) — never on the cash/bank contra account.  This ensures
+		GL analysis by party (per driver, per supplier, etc.) only appears
+		on the correct account.
+
+		Returns the account name that should get the party, or None if no
+		party is set on this Ledger Entry.
+		"""
+		if not self.party_type and not self.party:
+			return None
+
+		if self.entry_type in ("Expense", "Income", "Opening Balance"):
+			return self.account
+		if self.entry_type == "Payment":
+			# Payment: party goes on the receivable/payable (contra_account)
+			return self.contra_account
+		return None
 
 	def _ensure_ob_equity_account(self):
 		"""Auto-create Opening Balance Equity account if missing."""

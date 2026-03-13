@@ -52,9 +52,8 @@ frappe.ui.form.on('Fuel Requests', {
         var row = frm.fields_dict['approved_requests'].grid.grid_rows_by_docname[cdn];
         if (row.doc.status == "Approved") {
             row.toggle_editable('disburcement_type', (row.doc.receipt_date == null));
-            row.toggle_editable('supplier', (row.doc.receipt_date == null && row.doc.disburcement_type == "From Supplier"));
-            row.toggle_editable('receipt_date', ((row.doc.disburcement_type == "From Supplier" && row.doc.supplier) || (row.doc.disburcement_type == "Cash")));
-            row.toggle_editable('receipt_time', ((row.doc.disburcement_type == "From Supplier" && row.doc.supplier) || (row.doc.disburcement_type == "Cash")));
+            row.toggle_editable('receipt_date', (row.doc.disburcement_type == "From Supplier" || row.doc.disburcement_type == "Cash"));
+            row.toggle_editable('receipt_time', (row.doc.disburcement_type == "From Supplier" || row.doc.disburcement_type == "Cash"));
         }
     },
     make_stock_entry: function (frm) {
@@ -89,27 +88,14 @@ cur_frm.cscript.approve_request = function (frm) {
         return;
     }
 
-    // Build a preview message showing what will happen per row
     var rows = cur_frm.doc.requested_fuel.filter(function(r) {
         return selected['requested_fuel'].includes(r.name);
     });
 
-    var from_stock = rows.filter(function(r) {
-        return !r.disbursement_type || r.disbursement_type === "From Inventory";
-    });
-    var cash_buy = rows.filter(function(r) {
-        return r.disbursement_type === "Cash" || r.disbursement_type === "Cash Purchase" || r.disbursement_type === "From Supplier";
-    });
-
-    var msg = '<b>' + rows.length + ' fuel request(s) selected:</b><br><br>';
-    if (from_stock.length) {
-        msg += '<span style="color:#2490ef">&#9632; ' + from_stock.length + ' row(s) — From Inventory</span><br>';
-        msg += '&nbsp;&nbsp;→ Stock will be <b>deducted from warehouse</b><br><br>';
-    }
-    if (cash_buy.length) {
-        msg += '<span style="color:#e67e22">&#9632; ' + cash_buy.length + ' row(s) — Cash Purchase</span><br>';
-        msg += '&nbsp;&nbsp;→ Expense will be <b>booked to accounts</b> (Fuel Expense Dr / Payable Cr)<br><br>';
-    }
+    var msg = '<b>' + rows.length + ' fuel request(s) selected for approval.</b><br><br>';
+    msg += 'After approval, use the Trip form to process payment or stock reduction:<br>';
+    msg += '&nbsp;&nbsp;• <b>From Inventory</b> → Expenses → Reduce Stock<br>';
+    msg += '&nbsp;&nbsp;• <b>Cash Purchase</b> → Expenses → Create Fuel Payment<br><br>';
     msg += 'Confirm approval?';
 
     frappe.confirm(msg, function () {

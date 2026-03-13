@@ -5,7 +5,8 @@ from frappe.utils import flt, get_datetime, nowdate, nowtime
 
 
 def get_default_currency() -> str:
-    return frappe.db.get_value("Currency", {"enabled": 1}, "name") or "USD"
+    from vsd_fleet_ms.utils.accounting import get_company_currency
+    return get_company_currency()
 
 
 def _posting_dt(posting_date: str, posting_time: str):

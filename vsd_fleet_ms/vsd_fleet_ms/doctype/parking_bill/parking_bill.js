@@ -10,7 +10,7 @@ frappe.ui.form.on('Parking Bill', {
 					return;
 				}
 				frappe.call({
-					method: 'vsd_fleet_ms.utils.compliance.sync_parking_bills',
+					method: 'vsd_fleet_ms.vsd_fleet_ms.utils.compliance.sync_parking_bills',
 					args: { truck: frm.doc.truck },
 					freeze: true,
 					freeze_message: __('Fetching parking bills from TARURA...'),

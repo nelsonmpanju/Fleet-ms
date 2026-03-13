@@ -30,6 +30,14 @@ frappe.ui.form.on("Purchase Invoice", {
 		}
 	},
 
+	currency(frm) {
+		vsd_fleet_ms.fetch_exchange_rate(frm);
+	},
+
+	posting_date(frm) {
+		vsd_fleet_ms.fetch_exchange_rate(frm);
+	},
+
 	supplier(frm) {
 		if (!frm.doc.supplier) return;
 		// Auto-fill payable account from Supplier record first

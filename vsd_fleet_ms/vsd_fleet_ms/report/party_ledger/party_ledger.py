@@ -14,6 +14,7 @@ Driver    → Payable account    (Credit = expense approved; Debit = payment mad
 import frappe
 from frappe import _
 from frappe.utils import flt
+from vsd_fleet_ms.utils.accounting import get_company_currency
 
 # Account types to show for each party type
 _PARTY_ACCOUNT_TYPES = {
@@ -28,26 +29,27 @@ def execute(filters=None):
 	filters = frappe._dict(filters or {})
 	_validate(filters)
 
+	company_currency = get_company_currency()
 	account_types = _PARTY_ACCOUNT_TYPES.get(filters.party_type, ("Receivable", "Payable"))
 	opening  = _get_opening_balance(filters, account_types)
-	rows     = _get_period_entries(filters, account_types, opening)
-	summary  = _build_summary(rows, opening, filters)
+	rows     = _get_period_entries(filters, account_types, opening, company_currency)
+	summary  = _build_summary(rows, opening, filters, company_currency)
 
-	return _columns(), rows, None, None, summary
+	return _columns(company_currency), rows, None, None, summary
 
 
 # ── columns ────────────────────────────────────────────────────────────────────
 
-def _columns():
+def _columns(company_currency):
 	return [
 		{"fieldname": "posting_date", "label": _("Date"),        "fieldtype": "Date",     "width": 100},
 		{"fieldname": "voucher_no",   "label": _("Reference"),    "fieldtype": "Link",     "options": "Ledger Entry", "width": 130},
 		{"fieldname": "txn_type",     "label": _("Type"),         "fieldtype": "Data",     "width": 110},
 		{"fieldname": "description",  "label": _("Description"),  "fieldtype": "Data",     "width": 260},
 		{"fieldname": "account",      "label": _("Account"),      "fieldtype": "Data",     "width": 180},
-		{"fieldname": "debit",        "label": _("Debit"),        "fieldtype": "Currency", "width": 130},
-		{"fieldname": "credit",       "label": _("Credit"),       "fieldtype": "Currency", "width": 130},
-		{"fieldname": "balance",      "label": _("Balance"),      "fieldtype": "Currency", "width": 140},
+		{"fieldname": "debit",        "label": _("Debit"),        "fieldtype": "Currency", "options": "currency", "width": 130},
+		{"fieldname": "credit",       "label": _("Credit"),       "fieldtype": "Currency", "options": "currency", "width": 130},
+		{"fieldname": "balance",      "label": _("Balance"),      "fieldtype": "Currency", "options": "currency", "width": 140},
 	]
 
 
@@ -88,7 +90,7 @@ def _get_opening_balance(filters, account_types):
 	return flt(result[0].balance) if result else 0.0
 
 
-def _get_period_entries(filters, account_types, opening_balance):
+def _get_period_entries(filters, account_types, opening_balance, company_currency):
 	ph = _account_type_placeholders(account_types)
 	rows = frappe.db.sql(
 		f"""
@@ -127,6 +129,7 @@ def _get_period_entries(filters, account_types, opening_balance):
 			"credit":       -opening_balance if opening_balance < 0 else 0.0,
 			"balance":      opening_balance,
 			"is_opening":   1,
+			"currency":     company_currency,
 		}))
 
 	running      = opening_balance
@@ -139,6 +142,7 @@ def _get_period_entries(filters, account_types, opening_balance):
 		total_debit  += d
 		total_credit += c
 		row.balance   = running
+		row.currency  = company_currency
 		result.append(row)
 
 	closing = running
@@ -152,6 +156,7 @@ def _get_period_entries(filters, account_types, opening_balance):
 			"credit":  flt(credit),
 			"balance": None,
 			"is_footer": row_type,
+			"currency": company_currency,
 		})
 
 	result.append(_footer(
@@ -173,7 +178,7 @@ def _get_period_entries(filters, account_types, opening_balance):
 
 # ── summary cards ──────────────────────────────────────────────────────────────
 
-def _build_summary(rows, opening_balance, filters):
+def _build_summary(rows, opening_balance, filters, company_currency):
 	period_rows  = [r for r in rows if not r.get("is_opening") and not r.get("is_footer")]
 	total_debit  = sum(flt(r.debit)  for r in period_rows)
 	total_credit = sum(flt(r.credit) for r in period_rows)
@@ -189,8 +194,8 @@ def _build_summary(rows, opening_balance, filters):
 	)
 
 	return [
-		{"label": _("Opening Balance"),  "value": opening_balance, "datatype": "Currency", "indicator": "blue"},
-		{"label": _("Total Debits"),     "value": total_debit,     "datatype": "Currency", "indicator": "blue"},
-		{"label": _("Total Credits"),    "value": total_credit,    "datatype": "Currency", "indicator": "orange"},
-		{"label": _("Closing Balance"),  "value": closing,         "datatype": "Currency", "indicator": closing_indicator},
+		{"label": _("Opening Balance"),  "value": opening_balance, "datatype": "Currency", "indicator": "blue", "currency": company_currency},
+		{"label": _("Total Debits"),     "value": total_debit,     "datatype": "Currency", "indicator": "blue", "currency": company_currency},
+		{"label": _("Total Credits"),    "value": total_credit,    "datatype": "Currency", "indicator": "orange", "currency": company_currency},
+		{"label": _("Closing Balance"),  "value": closing,         "datatype": "Currency", "indicator": closing_indicator, "currency": company_currency},
 	]

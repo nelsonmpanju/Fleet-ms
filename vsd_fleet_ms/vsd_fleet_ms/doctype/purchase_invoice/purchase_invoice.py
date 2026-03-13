@@ -6,6 +6,7 @@ from frappe.model.naming import make_autoname
 from frappe.utils import flt, nowdate
 
 from vsd_fleet_ms.utils.inventory import post_purchase_invoice_stock
+from vsd_fleet_ms.utils.accounting import get_company_currency, get_exchange_rate
 
 
 def _get_expense_account_for_type(invoice_type: str) -> str | None:
@@ -40,9 +41,10 @@ class PurchaseInvoice(Document):
         if not self.due_date:
             self.due_date = self.posting_date
         if not self.currency:
-            self.currency = frappe.db.get_value("Currency", {"enabled": 1}, "name")
-        if not self.conversion_rate:
-            self.conversion_rate = 1
+            self.currency = get_company_currency()
+        self.conversion_rate = get_exchange_rate(
+            self.currency, get_company_currency(), self.posting_date
+        )
         # Auto-fill payable account from Supplier, then Transport Settings
         if not self.payable_account and self.supplier:
             self.payable_account = frappe.db.get_value(
@@ -111,6 +113,7 @@ class PurchaseInvoice(Document):
                 "party_type": "Supplier",
                 "party": self.supplier,
                 "currency": self.currency,
+                "conversion_rate": flt(self.conversion_rate) or 1,
                 "amount": amount,
                 "reference_doctype": "Purchase Invoice",
                 "reference_name": self.name,
@@ -167,6 +170,7 @@ class PurchaseInvoice(Document):
         self.taxable_amount = total - total_discount
         self.tax_amount = line_tax_total + header_tax
         self.grand_total = self.taxable_amount + self.tax_amount
+        self.base_grand_total = flt(self.grand_total) * (flt(self.conversion_rate) or 1)
 
         grand_total = flt(self.grand_total)
 

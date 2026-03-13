@@ -34,7 +34,6 @@ class FuelRequests(Document):
         for row in self.approved_requests:
             doc = frappe.get_doc("Fuel Requests Table", row.name)
             doc.db_set("disbursement_type", row.disbursement_type)
-            doc.db_set("supplier", row.supplier)
             doc.db_set("receipt_date", row.receipt_date)
             doc.db_set("receipt_time", row.receipt_time)
             doc.db_set("received_by", row.received_by)

@@ -2,12 +2,15 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
+from vsd_fleet_ms.utils.accounting import get_company_currency
+
 
 def execute(filters=None):
 	filters = filters or {}
+	company_currency = get_company_currency()
 	columns = get_columns()
 	data = get_data(filters)
-	report_summary = get_summary(data)
+	report_summary = get_summary(data, company_currency)
 	return columns, data, None, None, report_summary
 
 
@@ -24,10 +27,10 @@ def get_columns():
 		{"fieldname": "reference_trip", "label": _("Reference Trip"), "fieldtype": "Link", "options": "Trips", "width": 120},
 		{"fieldname": "actual_qty", "label": _("Qty Change"), "fieldtype": "Float", "width": 110},
 		{"fieldname": "qty_after_transaction", "label": _("Balance Qty"), "fieldtype": "Float", "width": 110},
-		{"fieldname": "incoming_rate", "label": _("Incoming Rate"), "fieldtype": "Currency", "width": 110},
-		{"fieldname": "valuation_rate", "label": _("Valuation Rate"), "fieldtype": "Currency", "width": 110},
-		{"fieldname": "stock_value_difference", "label": _("Value Change"), "fieldtype": "Currency", "width": 120},
-		{"fieldname": "stock_value", "label": _("Balance Value"), "fieldtype": "Currency", "width": 120},
+		{"fieldname": "incoming_rate", "label": _("Incoming Rate"), "fieldtype": "Currency", "options": "currency", "width": 110},
+		{"fieldname": "valuation_rate", "label": _("Valuation Rate"), "fieldtype": "Currency", "options": "currency", "width": 110},
+		{"fieldname": "stock_value_difference", "label": _("Value Change"), "fieldtype": "Currency", "options": "currency", "width": 120},
+		{"fieldname": "stock_value", "label": _("Balance Value"), "fieldtype": "Currency", "options": "currency", "width": 120},
 		{"fieldname": "currency", "label": _("Currency"), "fieldtype": "Link", "options": "Currency", "width": 90},
 		{"fieldname": "is_cancelled_entry", "label": _("Cancelled"), "fieldtype": "Check", "width": 80},
 	]
@@ -122,7 +125,7 @@ def get_data(filters):
 	)
 
 
-def get_summary(data):
+def get_summary(data, company_currency):
 	total_in_qty = 0
 	total_out_qty = 0
 	total_in_value = 0
@@ -141,6 +144,6 @@ def get_summary(data):
 	return [
 		{"value": total_in_qty, "label": _("Total In Qty"), "datatype": "Float"},
 		{"value": total_out_qty, "label": _("Total Out Qty"), "datatype": "Float"},
-		{"value": total_in_value, "label": _("Total In Value"), "datatype": "Currency"},
-		{"value": total_out_value, "label": _("Total Out Value"), "datatype": "Currency"},
+		{"value": total_in_value, "label": _("Total In Value"), "datatype": "Currency", "currency": company_currency},
+		{"value": total_out_value, "label": _("Total Out Value"), "datatype": "Currency", "currency": company_currency},
 	]

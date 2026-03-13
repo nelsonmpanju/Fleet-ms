@@ -17,6 +17,14 @@ frappe.ui.form.on("Payment Entry", {
 		});
 	},
 
+	currency(frm) {
+		vsd_fleet_ms.fetch_exchange_rate(frm);
+	},
+
+	posting_date(frm) {
+		vsd_fleet_ms.fetch_exchange_rate(frm);
+	},
+
 	reference_doctype(frm) {
 		frm.set_value("reference_name", null);
 	},

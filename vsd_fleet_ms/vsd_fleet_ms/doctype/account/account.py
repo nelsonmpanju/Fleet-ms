@@ -45,7 +45,8 @@ class Account(NestedSet):
 
 	def set_defaults(self):
 		if not self.account_currency:
-			self.account_currency = frappe.db.get_value("Currency", {"enabled": 1}, "name") or "USD"
+			from vsd_fleet_ms.utils.accounting import get_company_currency
+			self.account_currency = get_company_currency()
 
 	def set_balance_type(self):
 		if self.account_type:

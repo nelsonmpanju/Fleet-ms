@@ -4,9 +4,15 @@
 Compliance utilities for VSD Fleet MS.
 Handles:
   - Parking Bills via TARURA API
-  - Vehicle Fines via TPF web scraping
+  - Vehicle Fines via TPF JSON API
   - Insurance Cover Notes via TIRA API
 """
+
+import base64
+import hashlib
+import json as _json
+import re
+from datetime import datetime
 
 import frappe
 import requests
@@ -16,11 +22,13 @@ from frappe.utils import today, now, date_diff, getdate
 # Constants
 # ---------------------------------------------------------------------------
 TARURA_API_KEY = "e9f3e572-db87-4eff-9ed6-66922f1f7f24"
+# Port 6003 is plain HTTP — HTTPS causes SSL handshake failure
 TARURA_BASE_URL = (
-    "https://termis.tarura.go.tz:6003/termis-parking-service/api/v1"
+    "http://termis.tarura.go.tz:6003/termis-parking-service/api/v1"
     "/parkingDetails/debts/plateNumber/"
 )
-TPF_URL = "https://tms.tpf.go.tz/"
+TPF_API_URL = "https://tms.tpf.go.tz/api/OffenceCheck"
+TPF_SECRET_KEY = "irtismutDkjQBbZKEUn8hw7WqKdxld01E6HIY"
 TIRA_URL = "https://tiramis.tira.go.tz/covernote/api/public/portal/verify"
 REQUEST_TIMEOUT = 30  # seconds
 
@@ -42,7 +50,9 @@ def sync_parking_bills(truck):
         return "Could not reach TARURA API. Please try again later."
 
     created, updated = 0, 0
-    for bill in bills:
+    for row in bills:
+        # The API wraps bill data inside a "bill" key per row
+        bill = row.get("bill", row) if isinstance(row, dict) else row
         bill_id = str(bill.get("billId") or bill.get("bill_id") or "")
         if not bill_id:
             continue
@@ -50,7 +60,7 @@ def sync_parking_bills(truck):
         exists = frappe.db.exists("Parking Bill", {"bill_id": bill_id})
         if exists:
             doc = frappe.get_doc("Parking Bill", exists)
-            _map_tarura_bill(doc, bill, truck, plate)
+            _map_tarura_bill(doc, row, truck, plate)
             doc.last_synced = now()
             doc.save(ignore_permissions=True)
             updated += 1
@@ -58,7 +68,7 @@ def sync_parking_bills(truck):
             doc = frappe.new_doc("Parking Bill")
             doc.truck = truck
             doc.plate_number = plate
-            _map_tarura_bill(doc, bill, truck, plate)
+            _map_tarura_bill(doc, row, truck, plate)
             doc.last_synced = now()
             doc.insert(ignore_permissions=True)
             created += 1
@@ -72,34 +82,59 @@ def _fetch_tarura_bills(plate):
     headers = {"x-transfer-key": TARURA_API_KEY}
     url = TARURA_BASE_URL + plate
     try:
-        resp = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT, verify=False)
+        resp = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
         resp.raise_for_status()
         data = resp.json()
-        # API may return a list directly or wrapped in a key
+        # API returns {"status": true, "code": 6000, "data": [...]}
+        if isinstance(data, dict):
+            if data.get("code") == 6000:
+                return data.get("data") or []
+            # code 6004 = no records found
+            if data.get("code") == 6004:
+                return []
+            return data.get("data") or data.get("bills") or []
         if isinstance(data, list):
             return data
-        return data.get("data") or data.get("bills") or []
-    except Exception as e:
+        return []
+    except Exception:
         frappe.log_error(frappe.get_traceback(), f"TARURA API Error — {plate}")
         return None
 
 
-def _map_tarura_bill(doc, bill, truck, plate):
-    """Map a TARURA bill dict onto a Parking Bill document."""
+def _map_tarura_bill(doc, row, truck, plate):
+    """Map a TARURA API row onto a Parking Bill document."""
+    # The API returns nested data: row has "bill" and "parkingDetails"
+    bill = row.get("bill", row) if isinstance(row, dict) else row
+
     doc.truck = truck
     doc.plate_number = plate
     doc.bill_id = str(bill.get("billId") or bill.get("bill_id") or "")
-    doc.amount = float(bill.get("amount") or bill.get("totalAmount") or 0)
-    doc.issued_date = _safe_date(bill.get("issuedDate") or bill.get("issued_date"))
-    doc.due_date = _safe_date(bill.get("dueDate") or bill.get("due_date"))
-    doc.location = bill.get("location") or bill.get("parkingArea") or ""
-    doc.offence = bill.get("offence") or bill.get("violation") or ""
-    doc.description = bill.get("description") or ""
-    raw_status = str(bill.get("status") or "Outstanding").strip().title()
-    if raw_status in ("Outstanding", "Paid", "Waived"):
-        doc.status = raw_status
+    doc.amount = _safe_float(bill.get("billedAmount") or bill.get("amount") or 0)
+    doc.issued_date = _safe_date(bill.get("generatedDate") or bill.get("issuedDate"))
+    doc.due_date = _safe_date(bill.get("expiryDate") or bill.get("dueDate"))
+
+    # Extract location from parkingDetails if available
+    parking_details = row.get("parkingDetails") if isinstance(row, dict) else None
+    if parking_details and isinstance(parking_details, list) and parking_details:
+        first = parking_details[0]
+        doc.location = first.get("locationName") or first.get("location") or ""
+    elif not doc.location:
+        doc.location = ""
+
+    doc.offence = bill.get("billDescription") or bill.get("offence") or ""
+    doc.description = bill.get("remarks") or bill.get("description") or ""
+
+    # billPayed is a boolean in the API
+    if bill.get("billPayed") or bill.get("billPaid"):
+        doc.status = "Paid"
     else:
-        doc.status = "Outstanding"
+        raw_status = str(row.get("billStatus", "") if isinstance(row, dict) else "").strip()
+        if raw_status.lower() in ("true", "1"):
+            doc.status = "Outstanding"
+        elif raw_status.title() in ("Outstanding", "Paid", "Waived"):
+            doc.status = raw_status.title()
+        else:
+            doc.status = "Outstanding"
 
 
 @frappe.whitelist()
@@ -118,29 +153,103 @@ def sync_all_parking_bills():
 
 
 # ===========================================================================
-# VEHICLE FINES — TPF web scraping
+# VEHICLE FINES — TPF JSON API
 # ===========================================================================
+
+def _decrypt_tpf_payload(payload_b64):
+    """Decrypt AES-CBC encrypted payload from TPF API."""
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    from cryptography.hazmat.primitives import padding as sym_padding
+
+    key = TPF_SECRET_KEY[:32].encode("utf-8").ljust(32, b"\0")
+    iv_hex = hashlib.sha256(TPF_SECRET_KEY.encode("latin-1")).hexdigest()[:16]
+    iv = iv_hex.encode("utf-8")
+
+    # Handle double base64 encoding
+    decoded = base64.b64decode(payload_b64)
+    try:
+        decoded_str = decoded.decode("ascii")
+        if re.match(r"^[A-Za-z0-9+/]+=*$", decoded_str.strip()) and len(decoded_str) % 4 == 0:
+            decoded = base64.b64decode(decoded_str)
+    except (UnicodeDecodeError, Exception):
+        pass
+
+    cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
+    decryptor = cipher.decryptor()
+    plaintext = decryptor.update(decoded) + decryptor.finalize()
+
+    unpadder = sym_padding.PKCS7(128).unpadder()
+    plaintext = unpadder.update(plaintext) + unpadder.finalize()
+
+    return _json.loads(plaintext.decode("utf-8"))
+
+
+def _fetch_tpf_fines(plate):
+    """Call TPF JSON API and return list of fine dicts, or None on error."""
+    try:
+        resp = requests.post(
+            TPF_API_URL,
+            json={"vehicle": plate},
+            headers={"Content-Type": "application/json"},
+            timeout=REQUEST_TIMEOUT,
+            verify=False,
+        )
+        if resp.status_code == 429:
+            frappe.log_error("TPF API rate limit hit", f"TPF Rate Limit — {plate}")
+            return None
+        resp.raise_for_status()
+        data = resp.json()
+        if not data.get("payload"):
+            return []
+        result = _decrypt_tpf_payload(data["payload"])
+        if result.get("status") != "success":
+            return []
+        return result.get("pending_transactions") or []
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"TPF API error — {plate}")
+        return None
+
+
+def _fetch_tpf_by_reference(reference):
+    """Call TPF API by reference number to get updated fine status."""
+    try:
+        resp = requests.post(
+            TPF_API_URL,
+            json={"reference": reference},
+            headers={"Content-Type": "application/json"},
+            timeout=REQUEST_TIMEOUT,
+            verify=False,
+        )
+        if resp.status_code == 429:
+            return None
+        resp.raise_for_status()
+        data = resp.json()
+        if not data.get("payload"):
+            return []
+        result = _decrypt_tpf_payload(data["payload"])
+        if result.get("status") != "success":
+            return []
+        return result.get("pending_transactions") or []
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"TPF API error — ref {reference}")
+        return None
+
 
 @frappe.whitelist()
 def sync_vehicle_fines(truck):
-    """Scrape TPF for fines related to a single truck and upsert records."""
-    try:
-        from bs4 import BeautifulSoup
-    except ImportError:
-        return "BeautifulSoup4 is not installed. Run: pip install beautifulsoup4"
-
+    """Fetch fines for a single truck from TPF API and upsert records."""
     truck_doc = frappe.get_doc("Truck", truck)
     plate = truck_doc.license_plate
     if not plate:
         return f"Truck {truck} has no license plate configured."
 
-    fines = _scrape_tpf_fines(plate, BeautifulSoup)
+    fines = _fetch_tpf_fines(plate)
     if fines is None:
-        return "Could not reach TPF website. Please try again later."
+        return "Could not reach TPF. Please try again later."
 
     created, updated = 0, 0
     for fine in fines:
-        ref = fine.get("reference", "")
+        ref = str(fine.get("reference") or fine.get("reference_number") or "")
         if not ref:
             continue
 
@@ -165,74 +274,18 @@ def sync_vehicle_fines(truck):
     return f"Vehicle fines synced: {created} created, {updated} updated."
 
 
-def _scrape_tpf_fines(plate, BeautifulSoup):
-    """
-    POST to TPF and parse the HTML response.
-    Returns list of fine dicts or None on failure.
-    """
-    session = requests.Session()
-    try:
-        # Load the form to get formSig / CSRF token
-        resp = session.get(TPF_URL, timeout=REQUEST_TIMEOUT, verify=False)
-        soup = BeautifulSoup(resp.text, "html.parser")
-
-        form_sig_tag = soup.find("input", {"name": "formSig"})
-        form_sig = form_sig_tag["value"] if form_sig_tag else ""
-
-        payload = {
-            "service": "VEHICLE",
-            "vehicle": plate,
-            "formSig": form_sig,
-        }
-        resp2 = session.post(TPF_URL, data=payload, timeout=REQUEST_TIMEOUT, verify=False)
-        soup2 = BeautifulSoup(resp2.text, "html.parser")
-        return _parse_tpf_table(soup2)
-    except Exception:
-        frappe.log_error(frappe.get_traceback(), f"TPF scrape error — {plate}")
-        return None
-
-
-def _parse_tpf_table(soup):
-    """Parse the results table from TPF response HTML."""
-    fines = []
-    table = soup.find("table")
-    if not table:
-        return fines
-
-    rows = table.find_all("tr")
-    for row in rows[1:]:  # skip header
-        cols = [td.get_text(strip=True) for td in row.find_all("td")]
-        if len(cols) < 5:
-            continue
-        fine = {
-            "reference": cols[0],
-            "issued_date": _safe_date(cols[1]),
-            "offence": cols[2],
-            "officer": cols[3] if len(cols) > 3 else "",
-            "charge": _safe_float(cols[4] if len(cols) > 4 else "0"),
-            "penalty": _safe_float(cols[5] if len(cols) > 5 else "0"),
-            "total": _safe_float(cols[6] if len(cols) > 6 else "0"),
-            "status": cols[7].upper() if len(cols) > 7 else "PENDING",
-            "location": cols[8] if len(cols) > 8 else "",
-            "licence": cols[9] if len(cols) > 9 else "",
-            "qr_code": cols[10] if len(cols) > 10 else "",
-        }
-        fines.append(fine)
-    return fines
-
-
 def _map_tpf_fine(doc, fine, truck, plate):
     doc.truck = truck
     doc.vehicle = plate
-    doc.issued_date = fine.get("issued_date")
-    doc.offence = fine.get("offence") or ""
+    doc.issued_date = _safe_date(fine.get("issued_date") or fine.get("issuedDate"))
+    doc.offence = fine.get("offence") or fine.get("offense") or ""
     doc.officer = fine.get("officer") or ""
-    doc.licence = fine.get("licence") or ""
+    doc.licence = fine.get("licence") or fine.get("license") or ""
     doc.location = fine.get("location") or ""
-    doc.charge = fine.get("charge") or 0
-    doc.penalty = fine.get("penalty") or 0
-    doc.total = fine.get("total") or 0
-    doc.qr_code = fine.get("qr_code") or ""
+    doc.charge = _safe_float(fine.get("charge") or 0)
+    doc.penalty = _safe_float(fine.get("penalty") or 0)
+    doc.total = _safe_float(fine.get("total") or fine.get("amount") or 0)
+    doc.qr_code = fine.get("qr_code") or fine.get("qrCode") or ""
     raw_status = str(fine.get("status") or "PENDING").upper()
     if raw_status in ("PENDING", "PAID", "CANCELLED"):
         doc.status = raw_status
@@ -242,21 +295,16 @@ def _map_tpf_fine(doc, fine, truck, plate):
 
 @frappe.whitelist()
 def update_fine_status(reference):
-    """Re-scrape TPF to refresh a single fine's status."""
-    try:
-        from bs4 import BeautifulSoup
-    except ImportError:
-        return "BeautifulSoup4 is not installed."
-
+    """Call TPF API to refresh a single fine's status."""
     doc = frappe.get_doc("Vehicle Fine Record", reference)
-    plate = doc.vehicle
-    fines = _scrape_tpf_fines(plate, BeautifulSoup)
+    fines = _fetch_tpf_by_reference(reference)
     if fines is None:
-        return "Could not reach TPF website."
+        return "Could not reach TPF. Please try again later."
 
     for fine in fines:
-        if fine.get("reference") == reference:
-            _map_tpf_fine(doc, fine, doc.truck, plate)
+        ref = str(fine.get("reference") or fine.get("reference_number") or "")
+        if ref == reference:
+            _map_tpf_fine(doc, fine, doc.truck, doc.vehicle)
             doc.last_synced = now()
             doc.save(ignore_permissions=True)
             frappe.db.commit()
@@ -267,7 +315,7 @@ def update_fine_status(reference):
 
 @frappe.whitelist()
 def sync_all_vehicle_fines():
-    """Scheduled: scrape vehicle fines for every truck."""
+    """Scheduled: fetch vehicle fines for every truck."""
     trucks = frappe.get_all("Truck", filters={"license_plate": ["!=", ""]}, fields=["name"])
     results = []
     for t in trucks:
@@ -284,11 +332,26 @@ def sync_all_vehicle_fines():
 # INSURANCE COVER NOTES — TIRA API
 # ===========================================================================
 
+def _timestamp_to_date(value):
+    """Convert Unix timestamp in milliseconds to date, or return None."""
+    if not value:
+        return None
+    try:
+        if isinstance(value, (int, float)) and value > 1_000_000_000_000:
+            # Milliseconds — convert to seconds
+            return datetime.fromtimestamp(value / 1000).strftime("%Y-%m-%d")
+        if isinstance(value, (int, float)) and value > 1_000_000_000:
+            return datetime.fromtimestamp(value).strftime("%Y-%m-%d")
+        return _safe_date(value)
+    except Exception:
+        return _safe_date(value)
+
+
 @frappe.whitelist()
 def sync_insurance(truck):
     """Fetch insurance cover note for a single truck from TIRA and upsert."""
     truck_doc = frappe.get_doc("Truck", truck)
-    reg_number = truck_doc.license_plate  # registration number = plate
+    reg_number = truck_doc.license_plate
     if not reg_number:
         return f"Truck {truck} has no registration number configured."
 
@@ -327,7 +390,10 @@ def sync_insurance(truck):
 def _fetch_tira_covernote(reg_number):
     """Call TIRA API and return list of cover note dicts, or None on error."""
     payload = {"paramType": 2, "searchParam": reg_number}
-    headers = {"Content-Type": "application/json"}
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
     try:
         resp = requests.post(
             TIRA_URL, json=payload, headers=headers,
@@ -335,9 +401,19 @@ def _fetch_tira_covernote(reg_number):
         )
         resp.raise_for_status()
         data = resp.json()
+        # API returns {"code": 1000, "data": [...]} on success
+        if isinstance(data, dict):
+            if data.get("code") == 1000:
+                result = data.get("data")
+                if isinstance(result, list):
+                    return result
+                if result:
+                    return [result]
+                return []
+            return []
         if isinstance(data, list):
             return data
-        return data.get("data") or data.get("coverNotes") or [data] if data else []
+        return []
     except Exception:
         frappe.log_error(frappe.get_traceback(), f"TIRA API Error — {reg_number}")
         return None
@@ -345,18 +421,34 @@ def _fetch_tira_covernote(reg_number):
 
 def _map_tira_note(doc, note, truck, reg_number):
     doc.truck = truck
-    doc.vehicle = note.get("vehiclePlateNumber") or note.get("vehicle") or reg_number
+    # Extract plate from motor sub-object or top-level
+    motor = note.get("motor") or {}
+    doc.vehicle = (
+        motor.get("registrationNumber")
+        or note.get("vehiclePlateNumber")
+        or reg_number
+    )
     doc.registration_number = reg_number
-    doc.insurance_company = note.get("insurerName") or note.get("insurance_company") or ""
+
+    # Company info
+    company = note.get("company") or {}
+    doc.insurance_company = company.get("companyName") or note.get("insurerName") or ""
     doc.policy_number = note.get("policyNumber") or note.get("policy_number") or ""
     doc.policy_type = note.get("policyType") or note.get("policy_type") or ""
-    doc.cover_note_start_date = _safe_date(
+
+    # Dates are Unix timestamps in milliseconds
+    doc.cover_note_start_date = _timestamp_to_date(
         note.get("coverNoteStartDate") or note.get("start_date")
     )
-    doc.cover_note_end_date = _safe_date(
-        note.get("coverNoteExpiryDate") or note.get("end_date")
+    doc.cover_note_end_date = _timestamp_to_date(
+        note.get("coverNoteEndDate") or note.get("coverNoteExpiryDate") or note.get("end_date")
     )
-    doc.sum_insured = _safe_float(note.get("sumInsured") or note.get("sum_insured") or 0)
+    doc.sum_insured = _safe_float(
+        note.get("totalPremiumAmountIncludingTax")
+        or note.get("sumInsured")
+        or note.get("sum_insured")
+        or 0
+    )
 
     # Compute days_to_expiry and status
     if doc.cover_note_end_date:
@@ -408,7 +500,6 @@ def sync_truck_compliance(truck):
 @frappe.whitelist()
 def get_truck_compliance_summary(truck):
     """Return compliance counts for a truck (used by truck.js dashboard section)."""
-    plate = frappe.db.get_value("Truck", truck, "license_plate") or ""
     return {
         "outstanding_bills": frappe.db.count(
             "Parking Bill", {"truck": truck, "status": "Outstanding"}

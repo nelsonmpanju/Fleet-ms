@@ -10,16 +10,18 @@ Shows billed amount, collected amount, outstanding, and payment rate %.
 import frappe
 from frappe import _
 from frappe.utils import flt
+from vsd_fleet_ms.utils.accounting import get_company_currency
 
 
 def execute(filters=None):
     filters = frappe._dict(filters or {})
     _validate(filters)
-    data = _get_data(filters)
-    return _columns(filters), data, None, _chart(data, filters), _summary(data)
+    company_currency = get_company_currency()
+    data = _get_data(filters, company_currency)
+    return _columns(filters, company_currency), data, None, _chart(data, filters), _summary(data, company_currency)
 
 
-def _columns(filters):
+def _columns(filters, company_currency):
     group_by = filters.get("group_by") or "Customer"
     cols = []
 
@@ -40,9 +42,9 @@ def _columns(filters):
         cols.append({"fieldname": "invoices", "label": _("Invoices"), "fieldtype": "Int", "width": 80})
 
     cols += [
-        {"fieldname": "billed",       "label": _("Billed"),       "fieldtype": "Currency", "width": 130},
-        {"fieldname": "collected",    "label": _("Collected"),    "fieldtype": "Currency", "width": 130},
-        {"fieldname": "outstanding",  "label": _("Outstanding"),  "fieldtype": "Currency", "width": 130},
+        {"fieldname": "billed",       "label": _("Billed"),       "fieldtype": "Currency", "options": "currency", "width": 130},
+        {"fieldname": "collected",    "label": _("Collected"),    "fieldtype": "Currency", "options": "currency", "width": 130},
+        {"fieldname": "outstanding",  "label": _("Outstanding"),  "fieldtype": "Currency", "options": "currency", "width": 130},
         {"fieldname": "payment_rate", "label": _("Paid %"),       "fieldtype": "Percent",  "width": 90},
         {"fieldname": "last_invoice", "label": _("Last Invoice"), "fieldtype": "Date",     "width": 100},
     ]
@@ -56,7 +58,7 @@ def _validate(filters):
         frappe.throw(_("From Date cannot be after To Date."))
 
 
-def _get_data(filters):
+def _get_data(filters, company_currency):
     group_by = filters.get("group_by") or "Customer"
     conditions = ["docstatus = 1", "posting_date BETWEEN %(from_date)s AND %(to_date)s"]
     params = {"from_date": filters.from_date, "to_date": filters.to_date}
@@ -143,6 +145,7 @@ def _get_data(filters):
         d.collected = collected
         d.outstanding = flt(r.outstanding)
         d.payment_rate = round(payment_rate, 1)
+        d.currency = company_currency
         result.append(d)
 
     return result
@@ -176,7 +179,7 @@ def _chart(rows, filters):
     }
 
 
-def _summary(rows):
+def _summary(rows, company_currency):
     total_billed      = sum(flt(r.billed)      for r in rows)
     total_collected   = sum(flt(r.collected)   for r in rows)
     total_outstanding = sum(flt(r.outstanding) for r in rows)
@@ -184,8 +187,8 @@ def _summary(rows):
     collection_rate   = (total_collected / total_billed * 100) if total_billed > 0 else 0.0
     return [
         {"label": _("Total Invoices"),   "value": total_inv,           "datatype": "Int",      "indicator": "blue"},
-        {"label": _("Total Billed"),     "value": total_billed,        "datatype": "Currency", "indicator": "blue"},
-        {"label": _("Total Collected"),  "value": total_collected,     "datatype": "Currency", "indicator": "green"},
-        {"label": _("Outstanding"),      "value": total_outstanding,   "datatype": "Currency", "indicator": "red"},
+        {"label": _("Total Billed"),     "value": total_billed,        "datatype": "Currency", "currency": company_currency, "indicator": "blue"},
+        {"label": _("Total Collected"),  "value": total_collected,     "datatype": "Currency", "currency": company_currency, "indicator": "green"},
+        {"label": _("Outstanding"),      "value": total_outstanding,   "datatype": "Currency", "currency": company_currency, "indicator": "red"},
         {"label": _("Collection Rate %"),"value": round(collection_rate, 1), "datatype": "Float", "indicator": "green" if collection_rate >= 80 else "orange"},
     ]

@@ -12,7 +12,9 @@ app_license = "MIT"
 
 # include js, css files in header of desk.html
 app_include_css = "/assets/vsd_fleet_ms/css/fleet_dashboard.css"
-# app_include_js = "/assets/vsd_fleet_ms/js/vsd_fleet_ms.js"
+app_include_js = "/assets/vsd_fleet_ms/js/exchange_rate.js"
+
+boot_session = "vsd_fleet_ms.utils.accounting.boot_session"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/vsd_fleet_ms/css/vsd_fleet_ms.css"
@@ -126,6 +128,12 @@ scheduler_events = {
 		# Web scraping is slower — run in the long queue
 		"vsd_fleet_ms.vsd_fleet_ms.utils.compliance.sync_all_vehicle_fines",
 	],
+	"cron": {
+		"*/5 * * * *": [
+			# Traccar GPS position sync (interval gated inside the function)
+			"vsd_fleet_ms.vsd_fleet_ms.utils.traccar.sync_all_vehicle_positions",
+		],
+	},
 }
 
 # Testing

@@ -9,6 +9,7 @@ import json
 from frappe.model.document import Document
 from frappe.utils import flt, comma_or, nowdate
 from frappe import msgprint, _
+from vsd_fleet_ms.utils.accounting import get_company_currency, get_exchange_rate
 
 
 class RequestedPayment(Document):
@@ -192,7 +193,8 @@ def get_account_currency(account):
         currency = frappe.db.get_value("Account", account, "account_currency")
         if currency:
             return currency
-    return frappe.db.get_value("Currency", {"enabled": 1}, "name") or "USD"
+    from vsd_fleet_ms.utils.accounting import get_company_currency
+    return get_company_currency()
 
 
 def set_balance_in_account_currency(gl_dict, account_currency, conversion_rate, company_currency):
@@ -545,7 +547,16 @@ def get_total_approved(dt, dn, party_type, party, account):
 def get_gl_entries(data, reference_doctype, reference_docname):
     gl_entry = []
     doc = frappe.get_doc(reference_doctype, reference_docname)
-    company_currency = frappe.db.get_value("Currency", {"enabled": 1}, "name") or "USD"
+    company_currency = get_company_currency()
+
+    # Resolve exchange rate: prefer stored conversion_rate, else lookup from Exchange Rate master
+    posting_date = data.get("posting_date") or data.get("requested_date") or nowdate()
+    request_currency = data.get("request_currency") or company_currency
+    conversion_rate = flt(data.get("conversion_rate"))
+    if not conversion_rate:
+        conversion_rate = get_exchange_rate(request_currency, company_currency, posting_date)
+    if not conversion_rate:
+        conversion_rate = 1
 
     # payable entry
     payable_account_currency = get_account_currency(data.payable_account)
@@ -558,7 +569,7 @@ def get_gl_entries(data, reference_doctype, reference_docname):
                 "credit": data.request_amount,
                 "credit_in_account_currency": data.request_amount
                 if payable_account_currency == company_currency
-                else data.request_amount / data.conversion_rate,
+                else data.request_amount / conversion_rate,
                 "against": data.name,
                 "party_type": data.party_type,
                 "party": data.party,
@@ -579,7 +590,7 @@ def get_gl_entries(data, reference_doctype, reference_docname):
                 "debit": data.request_amount,
                 "debit_in_account_currency": data.request_amount
                 if expense_account_currency == company_currency
-                else data.request_amount / data.conversion_rate,
+                else data.request_amount / conversion_rate,
                 "against": data.name,
                 "cost_center": data.cost_center,
                 "against_voucher_type": doc.doctype,
@@ -623,7 +634,8 @@ def get_gl_dict(doc, data, args, account_currency=None):
     )
     gl_dict.update(args)
 
-    company_currency = frappe.db.get_value("Currency", {"enabled": 1}, "name") or "USD"
+    from vsd_fleet_ms.utils.accounting import get_company_currency
+    company_currency = get_company_currency()
 
     if not account_currency:
         account_currency = get_account_currency(gl_dict.account)
@@ -818,44 +830,11 @@ def approve_request(**args):
         doc.db_set("posting_date", nowdate())
         doc.posting_date = nowdate()
 
-    # If all accounting fields are ready, auto-create the ledger/GL entry immediately
-    parent_doctype = args.get("parent_doctype")
-    parent_docname = args.get("parent_docname")
-
-    if doc.expense_account and doc.payable_account:
-        try:
-            if doc.parenttype == "Trips":
-                # Trip expense rows: create a proper Ledger Entry document
-                from vsd_fleet_ms.vsd_fleet_ms.doctype.trips.trips import _make_expense_ledger_entry
-                _make_expense_ledger_entry(doc, approved_by=args.user)
-            elif parent_doctype and parent_docname:
-                # Non-Trip rows (legacy): create GL entries directly
-                gl_entries = get_gl_entries(doc, parent_doctype, parent_docname)
-                make_gl_entries(gl_entries)
-                doc.db_set("request_status", "Accounts Approved")
-                doc.db_set("request_hidden_status", "1")
-                doc.db_set("accounts_approved_by", args.user)
-                doc.db_set("accounts_approved_on", timestamp)
-
-            if parent_doctype == "Requested Payment" and parent_docname:
-                parent = frappe.get_doc("Requested Payment", parent_docname)
-                update_payment_status(parent)
-        except Exception as e:
-            error_msg = str(e)
-            frappe.log_error(
-                "Auto accounting entry failed for {0}: {1}".format(doc.name, error_msg),
-                "Approve Request Ledger"
-            )
-            # Show a visible warning — row stays at "Approved" so accounts team can complete it
-            frappe.msgprint(
-                _("Expense row <b>{0}</b> approved, but the Ledger Entry could not be created automatically:"
-                  "<br><br><i>{1}</i><br><br>"
-                  "Please open the Accounts Approval tab to complete the accounting step.").format(
-                    doc.name, error_msg
-                ),
-                indicator="orange",
-                title=_("Partial Approval — Accounts Step Pending"),
-            )
+    # GL/Ledger creation is NOT done here — it happens in the separate
+    # Accounts Approval step (accounts_approval function) or via the
+    # Trip form's "Approve Expenses" quick-action button.
+    # This keeps approval and accounting as distinct steps so users
+    # can control when and how payments are created per expense row.
 
     return "Request Updated"
 

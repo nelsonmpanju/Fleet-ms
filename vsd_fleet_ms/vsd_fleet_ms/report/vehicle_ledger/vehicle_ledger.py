@@ -19,21 +19,24 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
+from vsd_fleet_ms.utils.accounting import get_company_currency
+
 
 def execute(filters=None):
 	filters = frappe._dict(filters or {})
 	_validate(filters)
 
+	company_currency = get_company_currency()
 	trips   = _get_trips(filters)
-	rows    = _get_ledger_rows(filters, trips)
-	summary = _build_summary(rows)
+	rows    = _get_ledger_rows(filters, trips, company_currency)
+	summary = _build_summary(rows, company_currency)
 
-	return _columns(), rows, None, None, summary
+	return _columns(company_currency), rows, None, None, summary
 
 
 # ── columns ────────────────────────────────────────────────────────────────────
 
-def _columns():
+def _columns(company_currency):
 	return [
 		{"fieldname": "posting_date", "label": _("Date"),        "fieldtype": "Date",     "width": 100},
 		{"fieldname": "trip",         "label": _("Trip"),         "fieldtype": "Link",     "options": "Trips", "width": 120},
@@ -41,9 +44,9 @@ def _columns():
 		{"fieldname": "txn_type",     "label": _("Type"),         "fieldtype": "Data",     "width": 110},
 		{"fieldname": "description",  "label": _("Description"),  "fieldtype": "Data",     "width": 240},
 		{"fieldname": "account",      "label": _("Account"),      "fieldtype": "Data",     "width": 170},
-		{"fieldname": "income",       "label": _("Income"),       "fieldtype": "Currency", "width": 130},
-		{"fieldname": "expense",      "label": _("Expense"),      "fieldtype": "Currency", "width": 130},
-		{"fieldname": "net",          "label": _("Net"),          "fieldtype": "Currency", "width": 130},
+		{"fieldname": "income",       "label": _("Income"),       "fieldtype": "Currency", "options": "currency", "width": 130},
+		{"fieldname": "expense",      "label": _("Expense"),      "fieldtype": "Currency", "options": "currency", "width": 130},
+		{"fieldname": "net",          "label": _("Net"),          "fieldtype": "Currency", "options": "currency", "width": 130},
 	]
 
 
@@ -78,7 +81,7 @@ def _get_trips(filters):
 	return trips or []
 
 
-def _get_ledger_rows(filters, trips):
+def _get_ledger_rows(filters, trips, company_currency):
 	if not trips:
 		return []
 
@@ -146,6 +149,7 @@ def _get_ledger_rows(filters, trips):
 			"income":       income_amt,
 			"expense":      expense_amt,
 			"net":          net,
+			"currency":     company_currency,
 		}))
 
 		t = row.trip or ""
@@ -186,6 +190,7 @@ def _get_ledger_rows(filters, trips):
 				"expense":      te,
 				"net":          ti - te,
 				"is_total":     True,
+				"currency":     company_currency,
 			}))
 
 	return result
@@ -193,15 +198,15 @@ def _get_ledger_rows(filters, trips):
 
 # ── summary cards ──────────────────────────────────────────────────────────────
 
-def _build_summary(rows):
+def _build_summary(rows, company_currency):
 	data_rows    = [r for r in rows if not r.get("is_total")]
 	total_income  = sum(flt(r.income)  for r in data_rows)
 	total_expense = sum(flt(r.expense) for r in data_rows)
 	net           = total_income - total_expense
 
 	return [
-		{"label": _("Total Income"),  "value": total_income,  "datatype": "Currency", "indicator": "green"},
-		{"label": _("Total Expense"), "value": total_expense, "datatype": "Currency", "indicator": "red"},
-		{"label": _("Net Profit"),    "value": net,           "datatype": "Currency",
+		{"label": _("Total Income"),  "value": total_income,  "datatype": "Currency", "currency": company_currency, "indicator": "green"},
+		{"label": _("Total Expense"), "value": total_expense, "datatype": "Currency", "currency": company_currency, "indicator": "red"},
+		{"label": _("Net Profit"),    "value": net,           "datatype": "Currency", "currency": company_currency,
 		 "indicator": "green" if net >= 0 else "red"},
 	]

@@ -10,7 +10,7 @@ frappe.query_reports["Cash Bank Book"] = {
 			options: "Account",
 			reqd: 1,
 			get_query: function () {
-				return { filters: { is_group: 0, account_type: ["in", ["Cash", "Bank"]] } };
+				return { filters: { is_group: 0, account_sub_type: ["in", ["Cash", "Bank"]] } };
 			},
 		},
 		{

@@ -11,15 +11,18 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
+from vsd_fleet_ms.utils.accounting import get_company_currency
+
 
 def execute(filters=None):
     filters = frappe._dict(filters or {})
     _validate(filters)
-    data = _get_data(filters)
-    return _columns(), data, None, _chart(data), _summary(data)
+    company_currency = get_company_currency()
+    data = _get_data(filters, company_currency)
+    return _columns(company_currency), data, None, _chart(data), _summary(data, company_currency)
 
 
-def _columns():
+def _columns(company_currency):
     return [
         {"fieldname": "trip",          "label": _("Trip"),          "fieldtype": "Link",    "options": "Trips", "width": 120},
         {"fieldname": "date",          "label": _("Date"),          "fieldtype": "Date",     "width": 100},
@@ -28,10 +31,10 @@ def _columns():
         {"fieldname": "route",         "label": _("Route"),         "fieldtype": "Data",     "width": 150},
         {"fieldname": "distance_km",   "label": _("Distance (KM)"), "fieldtype": "Float",    "width": 110},
         {"fieldname": "fuel_litres",   "label": _("Fuel (Ltrs)"),   "fieldtype": "Float",    "width": 100},
-        {"fieldname": "fuel_cost",     "label": _("Fuel Cost"),     "fieldtype": "Currency", "width": 120},
-        {"fieldname": "cost_per_km",   "label": _("Cost / KM"),     "fieldtype": "Currency", "width": 110},
+        {"fieldname": "fuel_cost",     "label": _("Fuel Cost"),     "fieldtype": "Currency", "options": "currency", "width": 120},
+        {"fieldname": "cost_per_km",   "label": _("Cost / KM"),     "fieldtype": "Currency", "options": "currency", "width": 110},
         {"fieldname": "litres_per_km", "label": _("Ltrs / KM"),     "fieldtype": "Float",    "width": 100},
-        {"fieldname": "cost_per_litre","label": _("Cost / Litre"),  "fieldtype": "Currency", "width": 110},
+        {"fieldname": "cost_per_litre","label": _("Cost / Litre"),  "fieldtype": "Currency", "options": "currency", "width": 110},
         {"fieldname": "trip_status",   "label": _("Status"),        "fieldtype": "Data",     "width": 90},
     ]
 
@@ -43,7 +46,7 @@ def _validate(filters):
         frappe.throw(_("From Date cannot be after To Date."))
 
 
-def _get_data(filters):
+def _get_data(filters, company_currency):
     conditions = ["t.docstatus IN (0,1)", "t.date BETWEEN %(from_date)s AND %(to_date)s"]
     params = {"from_date": filters.from_date, "to_date": filters.to_date}
 
@@ -126,6 +129,7 @@ def _get_data(filters):
             "litres_per_km": round(litres_per_km, 4),
             "cost_per_litre":round(cost_per_litre, 2),
             "trip_status":   t.trip_status,
+            "currency":      company_currency,
         }))
 
     return rows
@@ -148,7 +152,7 @@ def _chart(rows):
     }
 
 
-def _summary(rows):
+def _summary(rows, company_currency):
     has_dist   = [r for r in rows if r.distance_km > 0]
     has_litres = [r for r in rows if r.fuel_litres > 0]
     total_dist   = sum(r.distance_km   for r in rows)
@@ -160,7 +164,7 @@ def _summary(rows):
     return [
         {"label": _("Total Distance (KM)"), "value": round(total_dist, 1),   "datatype": "Float",    "indicator": "blue"},
         {"label": _("Total Fuel (Ltrs)"),   "value": round(total_litres, 1), "datatype": "Float",    "indicator": "blue"},
-        {"label": _("Total Fuel Cost"),     "value": total_cost,             "datatype": "Currency", "indicator": "orange"},
+        {"label": _("Total Fuel Cost"),     "value": total_cost,             "datatype": "Currency", "currency": company_currency, "indicator": "orange"},
         {"label": _("Avg Cost / KM"),       "value": round(avg_cost_km, 4),  "datatype": "Float",    "indicator": "green"},
         {"label": _("Avg Ltrs / KM"),       "value": round(avg_l_km, 4),     "datatype": "Float",    "indicator": "green"},
         {"label": _("Avg Cost / Litre"),    "value": round(avg_cpl, 2),      "datatype": "Float",    "indicator": "green"},

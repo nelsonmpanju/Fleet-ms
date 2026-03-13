@@ -11,12 +11,15 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
+from vsd_fleet_ms.utils.accounting import get_company_currency
+
 
 def execute(filters=None):
     filters = frappe._dict(filters or {})
     _validate(filters)
+    company_currency = get_company_currency()
     data = _get_data(filters)
-    return _columns(filters), data, None, _chart(data, filters), _summary(data)
+    return _columns(filters), data, None, _chart(data, filters), _summary(data, company_currency)
 
 
 def _columns(filters):
@@ -26,7 +29,7 @@ def _columns(filters):
         {"fieldname": "expense_type", "label": _("Expense Type"),  "fieldtype": "Data",     "width": 160},
         {"fieldname": "description",  "label": _("Description"),   "fieldtype": "Data",     "width": 200},
         {"fieldname": "requested_date","label": _("Date"),          "fieldtype": "Date",     "width": 100},
-        {"fieldname": "amount",       "label": _("Amount"),        "fieldtype": "Currency", "width": 130},
+        {"fieldname": "amount",       "label": _("Amount"),        "fieldtype": "Currency", "options": "currency", "width": 130},
         {"fieldname": "currency",     "label": _("Currency"),      "fieldtype": "Data",     "width": 80},
         {"fieldname": "request_status","label": _("Status"),       "fieldtype": "Data",     "width": 120},
         {"fieldname": "payment_ref",  "label": _("Payment Ref"),   "fieldtype": "Data",     "width": 120},
@@ -111,7 +114,7 @@ def _chart(rows, filters):
     }
 
 
-def _summary(rows):
+def _summary(rows, company_currency):
     total = sum(flt(r.amount) for r in rows)
     by_driver = {}
     for r in rows:
@@ -123,8 +126,8 @@ def _summary(rows):
 
     return [
         {"label": _("Total Expense Rows"), "value": len(rows),     "datatype": "Int",      "indicator": "blue"},
-        {"label": _("Total Amount"),        "value": total,         "datatype": "Currency", "indicator": "orange"},
+        {"label": _("Total Amount"),        "value": total,         "datatype": "Currency", "currency": company_currency, "indicator": "orange"},
         {"label": _("Drivers"),             "value": len(by_driver),"datatype": "Int",      "indicator": "blue"},
         {"label": _("Top Driver"),          "value": top_driver,    "datatype": "Data",     "indicator": "red"},
-        {"label": _("Top Driver Amount"),   "value": top_amount,    "datatype": "Currency", "indicator": "red"},
+        {"label": _("Top Driver Amount"),   "value": top_amount,    "datatype": "Currency", "currency": company_currency, "indicator": "red"},
     ]
